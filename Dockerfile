@@ -16,7 +16,7 @@ RUN apt-get update \
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-RUN corepack enable
+RUN npm install -g corepack && corepack enable
 
 WORKDIR /openclaw
 
@@ -52,7 +52,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # `openclaw update` expects pnpm. Provide it in the runtime image.
-RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
+RUN npm install -g corepack \
+  && corepack enable \
+  && corepack prepare pnpm@10.23.0 --activate
 
 # Persist user-installed tools by default by targeting the Railway volume.
 # - npm global installs -> /data/npm
