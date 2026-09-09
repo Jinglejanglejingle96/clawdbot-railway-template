@@ -40,7 +40,7 @@ RUN pnpm ui:install && pnpm ui:build
 
 
 # Runtime image
-FROM node:22-bookworm
+FROM node:26-bookworm
 ENV NODE_ENV=production
 
 RUN apt-get update \
