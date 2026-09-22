@@ -74,6 +74,8 @@ process.env.OPENCLAW_GATEWAY_TOKEN = OPENCLAW_GATEWAY_TOKEN;
 const INTERNAL_GATEWAY_PORT = Number.parseInt(process.env.INTERNAL_GATEWAY_PORT ?? "18789", 10);
 const INTERNAL_GATEWAY_HOST = process.env.INTERNAL_GATEWAY_HOST ?? "127.0.0.1";
 const GATEWAY_TARGET = `http://${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`;
+const JEEVES_TELEMETRY_PORT = Number.parseInt(process.env.JEEVES_TELEMETRY_PORT ?? "8765", 10);
+const JEEVES_TELEMETRY_TARGET = `http://127.0.0.1:${JEEVES_TELEMETRY_PORT}`;
 
 // Always run the built-from-source CLI entry directly to avoid PATH/global-install mismatches.
 const OPENCLAW_ENTRY = process.env.OPENCLAW_ENTRY?.trim() || "/openclaw/dist/entry.js";
@@ -135,6 +137,22 @@ function isConfigured() {
 })();
 
 let gatewayProc = null;
+let telemetryProc = null;
+
+function startTelemetrySidecar() {
+  if (telemetryProc) return;
+  telemetryProc = childProcess.spawn("python3", [path.join(process.cwd(), "telemetry", "jeeves_telemetry.py")], {
+    env: process.env,
+    stdio: "inherit",
+  });
+  telemetryProc.on("error", (err) => {
+    console.error(`[jeeves-telemetry] process error: ${String(err)}`);
+  });
+  telemetryProc.on("exit", (code, signal) => {
+    telemetryProc = null;
+    console.error(`[jeeves-telemetry] exited code=${code ?? "null"} signal=${signal ?? "null"}`);
+  });
+}
 let gatewayStarting = null;
 
 // Debug breadcrumbs for common Railway failures (502 / "Application failed to respond").
@@ -1328,6 +1346,48 @@ proxy.on("error", (err, _req, res) => {
   }
 });
 
+// Expose the authenticated Artemis telemetry and command routes on Railway's HTTPS port.
+const telemetryProxy = httpProxy.createProxyServer({
+  target: JEEVES_TELEMETRY_TARGET,
+  xfwd: true,
+});
+
+telemetryProxy.on("error", (_err, _req, res) => {
+  try {
+    if (res && typeof res.writeHead === "function" && !res.headersSent) {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end('{"error":"telemetry unavailable"}');
+    }
+  } catch {
+    // ignore
+  }
+});
+
+app.get(["/health", "/telemetry"], (req, res) => {
+  telemetryProxy.web(req, res);
+});
+
+app.post("/command", async (req, res) => {
+  try {
+    const response = await fetch(`${JEEVES_TELEMETRY_TARGET}/command`, {
+      method: "POST",
+      headers: {
+        "Authorization": req.headers.authorization ?? "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+    const body = await response.text();
+    res.status(response.status).type("application/json").send(body);
+  } catch {
+    res.status(503).json({ error: "telemetry unavailable" });
+  }
+});
+
+app.all("/command", (_req, res) => {
+  res.status(405).json({ error: "method not allowed" });
+});
+
 // --- Dashboard password protection ---
 // Require the same SETUP_PASSWORD for the entire Control UI dashboard,
 // not just the /setup routes.  Healthcheck is excluded so Railway probes work.
@@ -1395,6 +1455,7 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
   console.log(`[wrapper] listening on :${PORT}`);
   console.log(`[wrapper] state dir: ${STATE_DIR}`);
   console.log(`[wrapper] workspace dir: ${WORKSPACE_DIR}`);
+  startTelemetrySidecar();
 
   // Harden state dir for OpenClaw and avoid missing credentials dir on fresh volumes.
   try {
@@ -1482,6 +1543,11 @@ process.on("SIGTERM", () => {
   // Best-effort shutdown
   try {
     if (gatewayProc) gatewayProc.kill("SIGTERM");
+  } catch {
+    // ignore
+  }
+  try {
+    if (telemetryProc) telemetryProc.kill("SIGTERM");
   } catch {
     // ignore
   }
