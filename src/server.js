@@ -8,6 +8,8 @@ import express from "express";
 import httpProxy from "http-proxy";
 import * as tar from "tar";
 
+import { createNewspaperRouter } from "./newspaper/index.js";
+
 // Migrate deprecated CLAWDBOT_* env vars → OPENCLAW_* so existing Railway deployments
 // keep working. Users should update their Railway Variables to use the new names.
 for (const suffix of ["PUBLIC_PORT", "STATE_DIR", "WORKSPACE_DIR", "GATEWAY_TOKEN", "CONFIG_PATH"]) {
@@ -1387,6 +1389,24 @@ app.post("/command", async (req, res) => {
 app.all("/command", (_req, res) => {
   res.status(405).json({ error: "method not allowed" });
 });
+
+// --- THE JEEVES DAILY ---
+// Renders the editions REPORTER writes to <workspace>/data/newspaper/.
+// Must be registered before requireDashboardAuth: the router carries its own
+// reading key so the morning link works without the dashboard password.
+try {
+  app.use(
+    "/news",
+    createNewspaperRouter({
+      workspaceDir: WORKSPACE_DIR,
+      stateDir: STATE_DIR,
+      setupPassword: SETUP_PASSWORD,
+      mountPath: "/news",
+    }),
+  );
+} catch (err) {
+  console.error(`[newspaper] failed to mount /news: ${String(err)}`);
+}
 
 // --- Dashboard password protection ---
 // Require the same SETUP_PASSWORD for the entire Control UI dashboard,

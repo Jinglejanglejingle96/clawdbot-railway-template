@@ -1,0 +1,820 @@
+/* THE JEEVES DAILY — print-derived editorial stylesheet.
+   Rules and whitespace do the work. No cards, no pills, no shadows on content. */
+
+:root {
+  --paper: #faf7f0;
+  --desk: #e6dfd0;
+  --ink: #15110c;
+  --ink-soft: #352f26;
+  --muted: #6e6558;
+  --faint: #8e8578;
+  --rule: #cec6b4;
+  --rule-hair: #ded7c7;
+  --accent: #8c2f24;
+
+  --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --display: "Bodoni Moda", "Didot", "Playfair Display", Georgia, serif;
+  --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+
+  --gutter: 2.2rem;
+  --sheet: 1320px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14120e;
+    --desk: #0b0a08;
+    --ink: #ece5d7;
+    --ink-soft: #cdc5b5;
+    --muted: #968c7c;
+    --faint: #7c7364;
+    --rule: #3a352c;
+    --rule-hair: #2b2721;
+    --accent: #c9705f;
+  }
+  .figure img { filter: saturate(0.85) brightness(0.88); }
+  body::after { opacity: 0.05; }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.5;
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+}
+
+/* Paper grain. Barely there — it should register as texture, never as pattern. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.sheet {
+  max-width: var(--sheet);
+  margin: 0 auto;
+  background: var(--paper);
+  padding: 2.4rem clamp(1rem, 3.4vw, 3.2rem) 4rem;
+  min-height: 100vh;
+}
+
+@media (min-width: 1400px) {
+  .sheet { box-shadow: 0 0 0 1px rgba(21, 17, 12, 0.07), 0 18px 60px -40px rgba(21, 17, 12, 0.5); }
+}
+
+a { color: inherit; text-decoration: none; }
+
+a:hover .hed, a:hover .deck, a.plain:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent);
+}
+
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ── Nameplate ─────────────────────────────────────────────────────────── */
+
+.folio {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.folio span:nth-child(2) { text-align: center; }
+.folio span:last-child { text-align: right; }
+
+.masthead {
+  display: block;
+  font-family: var(--display);
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-size: clamp(2.3rem, 8.4vw, 5.9rem);
+  line-height: 0.94;
+  letter-spacing: 0.015em;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 1.7rem 0 1.5rem;
+  color: var(--ink);
+}
+
+.masthead .the {
+  display: block;
+  font-size: 0.32em;
+  letter-spacing: 0.42em;
+  font-weight: 500;
+  margin-bottom: 0.35em;
+  text-indent: 0.42em;
+}
+
+.rule-double {
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  height: 4px;
+}
+
+.indexstrip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 1.35rem;
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--ink);
+  margin-bottom: 2.2rem;
+}
+
+.indexstrip a:hover { color: var(--accent); }
+.indexstrip .ix-archive { color: var(--faint); font-style: italic; letter-spacing: 0.14em; }
+
+/* ── Market ticker band ────────────────────────────────────────────────── */
+
+.ticker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2.4rem;
+  align-items: baseline;
+  padding: 0.55rem 0 0.6rem;
+  margin: -1.5rem 0 2.2rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.tgroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 1.4rem;
+  padding-right: 2.4rem;
+  border-right: 1px solid var(--rule);
+}
+
+.ticker .tgroup:last-child { border-right: 0; padding-right: 0; }
+
+.tname {
+  font-family: var(--sans);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.tick { display: inline-flex; align-items: baseline; gap: 0.45rem; white-space: nowrap; }
+
+.t-label {
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.t-val { font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+.t-chg {
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-chg.up { color: var(--accent); }
+.t-chg.down { color: #2f5d4f; }
+.t-chg.flat { color: var(--faint); }
+
+@media (prefers-color-scheme: dark) { .t-chg.down { color: #7fae9c; } }
+
+/* ── Shared story furniture ────────────────────────────────────────────── */
+
+.kicker {
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.hed {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.008em;
+  margin: 0;
+  text-wrap: balance;
+  hyphens: auto;
+  color: var(--ink);
+}
+
+.deck {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ink-soft);
+  line-height: 1.34;
+  text-wrap: pretty;
+  margin: 0.5rem 0 0;
+}
+
+.sumry {
+  margin: 0.7rem 0 0;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.byline {
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-top: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.byline .sep { color: var(--rule); }
+
+/* Figures. A fixed aspect box means portrait, landscape and square art all
+   crop to the same rhythm, and a missing or broken image never shifts type. */
+.figure {
+  margin: 0 0 0.85rem;
+  position: relative;
+}
+
+.figure .frame {
+  display: block;
+  aspect-ratio: var(--ar, 3 / 2);
+  overflow: hidden;
+  background: var(--rule-hair);
+}
+
+.figure img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 38%;
+  display: block;
+  filter: saturate(0.93) contrast(1.02);
+  transition: filter 220ms ease;
+}
+
+a:hover .figure img { filter: saturate(1) contrast(1.04); }
+
+.figure figcaption {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted);
+  padding-top: 0.4rem;
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--rule-hair);
+}
+
+.figure figcaption .credit {
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-left: 0.4rem;
+  white-space: nowrap;
+}
+
+/* Set by the inline onerror handler when a publisher image 404s or is blocked. */
+.figure[hidden] { display: none; }
+
+/* ── Front page ────────────────────────────────────────────────────────── */
+
+.frontpage {
+  display: grid;
+  grid-template-columns: minmax(0, 2.55fr) minmax(0, 1fr);
+  gap: 0 var(--gutter);
+  align-items: start;
+  padding-bottom: 2.6rem;
+  border-bottom: 3px solid var(--ink);
+  margin-bottom: 2.6rem;
+}
+
+.frontpage.solo { grid-template-columns: minmax(0, 1fr); }
+
+.leadwell { min-width: 0; }
+
+.s-lead .hed {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 4.4vw, 3.85rem);
+  line-height: 1.01;
+  letter-spacing: -0.018em;
+}
+
+.s-lead .deck {
+  font-size: clamp(1.05rem, 1.55vw, 1.32rem);
+  margin-top: 0.75rem;
+  max-width: 46ch;
+}
+
+.s-lead .figure { margin-top: 1.4rem; }
+.s-lead .figure .frame { --ar: 21 / 10; }
+
+.s-lead .body {
+  margin-top: 1.2rem;
+  columns: 2;
+  column-gap: var(--gutter);
+  column-rule: 1px solid var(--rule-hair);
+  font-size: 1.02rem;
+  line-height: 1.58;
+  color: var(--ink-soft);
+}
+
+.s-lead .body.single { columns: 1; max-width: 56ch; }
+.s-lead .body p { margin: 0 0 0.9rem; text-wrap: pretty; }
+
+.s-lead .body p:first-child::first-letter {
+  font-family: var(--display);
+  font-weight: 700;
+  float: left;
+  font-size: 3.35em;
+  line-height: 0.79;
+  padding: 0.05em 0.09em 0 0;
+  color: var(--ink);
+}
+
+/* Without art, the lead earns its prominence typographically instead. */
+.s-lead.no-art .hed { font-size: clamp(2.4rem, 5.4vw, 4.6rem); }
+.s-lead.no-art .deck { font-size: clamp(1.1rem, 1.75vw, 1.45rem); max-width: 52ch; }
+.s-lead.no-art .body { margin-top: 1.5rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); }
+
+.s-lead .readmore {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+}
+
+/* Second story above the fold, printed across the main well. */
+.s-second {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 0 var(--gutter);
+  align-items: start;
+  margin-top: 1.8rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--ink);
+}
+
+.s-second.no-art { grid-template-columns: minmax(0, 1fr); }
+.s-second .figure { margin: 0; }
+.s-second .figure .frame { --ar: 4 / 3; }
+.s-second .hed { font-size: clamp(1.4rem, 2.1vw, 1.85rem); }
+.s-second .deck { font-size: 0.97rem; }
+.s-second .sumry { font-size: 0.94rem; line-height: 1.55; }
+.s-second.no-art .text { columns: 2; column-gap: var(--gutter); column-rule: 1px solid var(--rule-hair); }
+.s-second.no-art .text > a { column-span: all; display: block; }
+
+.rail {
+  min-width: 0;
+  border-left: 1px solid var(--rule);
+  padding-left: var(--gutter);
+}
+
+.s-rail { padding: 1.15rem 0; border-top: 1px solid var(--rule-hair); }
+.s-rail:first-child { padding-top: 0; border-top: 0; }
+.s-rail .hed { font-size: 1.18rem; }
+.s-rail .deck { font-size: 0.88rem; margin-top: 0.35rem; }
+.s-rail .figure { margin-bottom: 0.7rem; }
+.s-rail .figure .frame { --ar: 3 / 2; }
+
+/* ── Jeeves' Briefing ──────────────────────────────────────────────────── */
+
+.briefing {
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 0.95rem 0 1.15rem;
+  margin-bottom: 1.5rem;
+}
+
+.briefing h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.32rem;
+  letter-spacing: 0.005em;
+  margin: 0 0 0.15rem;
+}
+
+.briefing .stamp {
+  font-family: var(--sans);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+.briefing p {
+  margin: 0.55rem 0 0;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.briefing p:first-of-type::first-letter {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.45em;
+  line-height: 1;
+}
+
+/* ── Sections ──────────────────────────────────────────────────────────── */
+
+.section { margin-bottom: 3rem; scroll-margin-top: 1rem; }
+
+.sectionhead {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 0.45rem;
+  margin-bottom: 1.5rem;
+}
+
+.sectionhead h2 {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.sectionhead .fill { flex: 1; border-top: 1px solid var(--rule); }
+
+.sectionhead .count {
+  font-family: var(--sans);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.section-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--gutter);
+}
+
+.section-body.with-briefs { grid-template-columns: minmax(0, 3.1fr) minmax(0, 1fr); }
+
+.wells { min-width: 0; }
+
+/* Section feature: art and type share the width, asymmetrically. */
+.s-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 0 var(--gutter);
+  padding-bottom: 1.7rem;
+  margin-bottom: 1.7rem;
+  border-bottom: 1px solid var(--rule);
+  align-items: start;
+}
+
+.s-feature.no-art { grid-template-columns: minmax(0, 1fr); }
+.s-feature .figure { margin: 0; }
+.s-feature .figure .frame { --ar: 4 / 3; }
+.s-feature .hed { font-size: clamp(1.5rem, 2.3vw, 2.05rem); }
+.s-feature .deck { font-size: 1rem; }
+.s-feature .sumry { font-size: 0.96rem; line-height: 1.55; }
+
+.s-feature.no-art .text { columns: 2; column-gap: var(--gutter); column-rule: 1px solid var(--rule-hair); }
+.s-feature.no-art .hed { column-span: all; font-size: clamp(1.7rem, 2.9vw, 2.5rem); margin-bottom: 0.5rem; }
+.s-feature.no-art .kicker { column-span: all; }
+
+/* Standard grid, with true column rules rather than gaps. */
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.7rem 0;
+}
+
+/* Two stories should share the width, not leave a hole in a third column. */
+.grid3.cols-1 { grid-template-columns: minmax(0, 1fr); }
+.grid3.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid3.cols-1 > .s-standard,
+.grid3.cols-2 > .s-standard:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
+.grid3.cols-2 > .s-standard:nth-child(2n) { padding-right: 0; }
+.grid3.cols-1 > .s-standard { padding-right: 0; }
+
+.s-standard { padding: 0 1.4rem; border-left: 1px solid var(--rule-hair); min-width: 0; }
+.grid3 > .s-standard:nth-child(3n + 1) { border-left: 0; padding-left: 0; }
+.grid3 > .s-standard:nth-child(3n) { padding-right: 0; }
+
+.s-standard .figure .frame { --ar: 4 / 3; }
+.s-standard .hed { font-size: 1.16rem; }
+.s-standard .deck { font-size: 0.86rem; }
+.s-standard .sumry { font-size: 0.88rem; line-height: 1.5; }
+
+/* In Brief column */
+.briefs {
+  border-top: 2px solid var(--ink);
+  padding-top: 0.7rem;
+  min-width: 0;
+}
+
+.briefs > h3 {
+  font-family: var(--sans);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.8rem;
+}
+
+.s-brief { padding: 0.75rem 0; border-top: 1px dotted var(--rule); }
+.s-brief:first-of-type { border-top: 0; padding-top: 0; }
+.s-brief .hed { font-size: 0.95rem; line-height: 1.24; }
+.s-brief .sumry { font-size: 0.8rem; margin-top: 0.3rem; line-height: 1.45; }
+.s-brief .byline { margin-top: 0.4rem; font-size: 0.54rem; }
+
+/* Pull quote — used sparingly, when REPORTER supplies one. */
+.pullquote {
+  border-top: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  padding: 1rem 0;
+  margin: 1.6rem 0;
+  font-family: var(--display);
+  font-size: clamp(1.1rem, 1.7vw, 1.45rem);
+  line-height: 1.32;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--ink);
+}
+
+.pullquote cite {
+  display: block;
+  margin-top: 0.6rem;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ── Article view ──────────────────────────────────────────────────────── */
+
+.article { max-width: 42rem; margin: 0 auto; }
+.article .hed { font-family: var(--display); font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.04; letter-spacing: -0.015em; }
+.article .deck { font-size: 1.15rem; margin-top: 0.9rem; }
+.article .figure { margin: 1.8rem 0 1.4rem; }
+.article .figure .frame { --ar: 3 / 2; }
+.article .prose { font-size: 1.08rem; line-height: 1.66; color: var(--ink-soft); }
+.article .prose p { margin: 0 0 1.1rem; text-wrap: pretty; }
+
+.article .label {
+  font-family: var(--sans);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin: 1.6rem 0 0.4rem;
+}
+
+.article .origin {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--ink);
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.article .origin a { color: var(--accent); border-bottom: 1px solid currentColor; }
+
+.moreedition { max-width: 42rem; margin: 3rem auto 0; }
+.moreedition ol { list-style: none; margin: 0; padding: 0; }
+.moreedition li { padding: 0.75rem 0; border-top: 1px solid var(--rule-hair); }
+.moreedition .hed { font-size: 1.05rem; }
+
+/* ── Archive ───────────────────────────────────────────────────────────── */
+
+.archive { max-width: 48rem; margin: 0 auto; }
+
+.archive h2 {
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 2.2rem 0 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.archive h2:first-child { margin-top: 0; }
+
+.archive .row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  gap: 1.2rem;
+  align-items: baseline;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule-hair);
+}
+
+.archive .day {
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.archive .lede { font-size: 1.05rem; line-height: 1.3; text-wrap: pretty; }
+.archive .n { font-family: var(--sans); font-size: 0.58rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+
+/* ── Colophon / empty state ────────────────────────────────────────────── */
+
+.colophon {
+  margin-top: 3.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.6rem 1.5rem;
+  font-family: var(--sans);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.colophon a:hover { color: var(--accent); }
+
+.empty { max-width: 34rem; margin: 5rem auto; text-align: center; }
+.empty h2 { font-family: var(--display); font-weight: 700; font-size: 1.9rem; margin: 0 0 0.8rem; }
+.empty p { color: var(--muted); }
+
+/* ── Responsive: recompose, don't shrink ───────────────────────────────── */
+
+@media (max-width: 1180px) {
+  :root { --gutter: 1.8rem; }
+  .frontpage { grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); }
+  .grid3, .grid3.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid3 > .s-standard:nth-child(3n + 1) { border-left: 1px solid var(--rule-hair); padding-left: 1.4rem; }
+  .grid3 > .s-standard:nth-child(3n) { padding-right: 1.4rem; }
+  .grid3 > .s-standard:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
+  .grid3 > .s-standard:nth-child(2n) { padding-right: 0; }
+}
+
+@media (max-width: 900px) {
+  body { font-size: 16.5px; }
+
+  /* The rail stops being a rail and becomes a two-up strip beneath the lead. */
+  .frontpage { grid-template-columns: minmax(0, 1fr); }
+  .rail {
+    border-left: 0;
+    padding-left: 0;
+    margin-top: 1.8rem;
+    padding-top: 1.4rem;
+    border-top: 2px solid var(--ink);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--gutter);
+  }
+  /* The rail already carries a rule here; the briefing must not add a second. */
+  .rail .briefing { grid-column: 1 / -1; border-top: 0; padding-top: 0; }
+  .s-rail { border-top: 0; padding-top: 0; }
+
+  .section-body.with-briefs { grid-template-columns: minmax(0, 1fr); }
+  .briefs { margin-top: 1.8rem; }
+  .s-feature, .s-second { grid-template-columns: minmax(0, 1fr); }
+  .s-second .figure { margin-top: 1rem; }
+  .s-feature .figure { margin-bottom: 1rem; }
+  .s-feature .figure .frame { --ar: 2 / 1; }
+  .s-lead .figure .frame { --ar: 16 / 9; }
+}
+
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  :root { --gutter: 1.2rem; }
+
+  .sheet { padding: 1.5rem 1.15rem 3rem; }
+
+  /* A wrapped ticker reads as broken data; a scrolling one reads as a ticker. */
+  .ticker {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0 1.4rem;
+    margin-inline: -1.15rem;
+    padding-inline: 1.15rem;
+  }
+  .ticker::-webkit-scrollbar { display: none; }
+  .tgroup { flex-wrap: nowrap; padding-right: 1.4rem; }
+
+  .masthead { margin: 1.1rem 0 1rem; }
+  .indexstrip { margin-bottom: 1.6rem; gap: 0.3rem 0.9rem; }
+  .folio { font-size: 0.56rem; letter-spacing: 0.12em; }
+
+  /* Lead keeps its authority; the two-column body would be unreadable. */
+  .s-lead .body { columns: 1; }
+  .s-lead .figure .frame { --ar: 3 / 2; }
+
+  .rail { grid-template-columns: minmax(0, 1fr); }
+
+  /* Standard stories become a ruled list with a small square of art —
+     the way a print paper sets its lower-page columns, not a card feed. */
+  /* Beat the .cols-N modifiers, which are more specific than a bare .grid3. */
+  .grid3, .grid3.cols-1, .grid3.cols-2, .grid3.cols-3 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .s-standard {
+    border-left: 0 !important;
+    padding: 1rem 0 !important;
+    border-top: 1px solid var(--rule-hair);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5.5rem;
+    gap: 0 1rem;
+    align-items: start;
+  }
+  .s-standard:first-child { border-top: 0; padding-top: 0 !important; }
+  .s-standard > .art { grid-column: 2; grid-row: 1 / span 3; }
+  .s-standard > .art .figure { margin: 0; }
+  .s-standard .figure .frame { --ar: 1 / 1; }
+  .s-standard > .hl, .s-standard > .sumry, .s-standard > .byline { grid-column: 1; }
+  .s-standard .deck { display: none; }
+  .s-standard .sumry { font-size: 0.85rem; }
+
+  .s-rail { padding: 0.9rem 0; border-top: 1px solid var(--rule-hair); }
+  .s-rail:first-child { border-top: 0; padding-top: 0; }
+
+  .archive .row { grid-template-columns: minmax(0, 1fr); gap: 0.25rem; }
+  .archive .n { display: none; }
+}
+
+@media print {
+  body { background: #fff; font-size: 10.5pt; }
+  body::after, .colophon, .indexstrip { display: none; }
+  .sheet { max-width: none; box-shadow: none; padding: 0; }
+  a { text-decoration: none; }
+  .section, .s-feature, .frontpage { break-inside: avoid; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
