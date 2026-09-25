@@ -364,7 +364,8 @@ def _read_provider_usage() -> dict[str, int | None]:
             # starts returning an anthropic figure again it will be from the credential we
             # already know is wrong, and a stale-but-plausible number is worse than none.
             if claude is not None:
-                for field in ("claude5h", "claudeWeek"):
+                # Reset times ride along for Mission Control; the watch bridge reads fields by name.
+                for field in ("claude5h", "claudeWeek", "claude5hResetAt", "claudeWeekResetAt"):
                     if claude.get(field) is not None:
                         fresh[field] = claude[field]
             # Providers are independent (e.g. Anthropic's usage endpoint can be transiently
