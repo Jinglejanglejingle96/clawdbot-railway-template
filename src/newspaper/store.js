@@ -92,6 +92,13 @@ export function readLatestEdition(workspaceDir, date = londonToday()) {
   return null;
 }
 
+/** Delete every edition dated before `keepDate`; only the newest paper is kept. */
+export function pruneEditions(workspaceDir, keepDate) {
+  for (const d of listEditions(workspaceDir)) {
+    if (d < keepDate) fs.rmSync(editionPath(workspaceDir, d), { force: true });
+  }
+}
+
 export function writeEdition(workspaceDir, edition) {
   const date = edition?.date;
   if (!DATE_RE.test(date ?? "")) throw new Error("edition.date must be YYYY-MM-DD");

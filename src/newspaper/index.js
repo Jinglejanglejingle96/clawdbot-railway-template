@@ -18,12 +18,14 @@ import {
   listEditions,
   londonToday,
   newspaperDir,
+  pruneEditions,
   readEdition,
   readLatestEdition,
 } from "./store.js";
 
 const COOKIE = "jd_key";
 const COOKIE_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
+const FIRST_EDITION = "2026-09-23";
 
 function resolveNewsToken(stateDir) {
   const fromEnv = process.env.NEWS_TOKEN?.trim();
@@ -156,11 +158,10 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
   function context(req, date) {
     const key = typeof req.query.k === "string" && req.query.k ? encodeURIComponent(req.query.k) : "";
     const carry = key ? `?k=${key}` : "";
-    const dates = listEditions(workspaceDir);
-    const oldest = dates.length ? dates[dates.length - 1] : null;
     let editionNo = null;
-    if (oldest && date) {
-      const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${oldest}T00:00:00Z`)) / 86400000);
+    if (date) {
+      // Old editions are pruned, so count from the first issue, not the oldest file.
+      const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${FIRST_EDITION}T00:00:00Z`)) / 86400000);
       if (Number.isFinite(days) && days >= 0) editionNo = (days + 1).toLocaleString("en-GB");
     }
     return {
@@ -191,7 +192,8 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
           .type("html")
           .send(renderEmpty(context(req, null), "REPORTER has not filed an edition yet."));
       }
-      await ensureImages(workspaceDir, edition);
+      pruneEditions(workspaceDir, edition.date);
+      await ensureImages(workspaceDir, edition, { prune: true });
       res.type("html").set("Cache-Control", "private, max-age=60").send(renderFrontPage(edition, context(req, edition.date)));
     } catch (err) {
       next(err);

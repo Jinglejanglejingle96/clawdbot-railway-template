@@ -146,8 +146,18 @@ function cachedValue(entry) {
  * is text-first and reads correctly without any image at all. The next page
  * load picks up where this one stopped.
  */
-export async function ensureImages(workspaceDir, edition, { budgetMs = 4000 } = {}) {
+export async function ensureImages(workspaceDir, edition, { budgetMs = 4000, prune = false } = {}) {
   const c = loadCache(workspaceDir);
+  if (prune) {
+    // Only one edition is kept, so drop lookups for articles no longer on disk.
+    const live = new Set([...edition.bySlug.values()].map((s) => s.url));
+    for (const url of Object.keys(c)) {
+      if (!live.has(url)) {
+        delete c[url];
+        cacheDirty = true;
+      }
+    }
+  }
   const pending = [];
   for (const story of edition.bySlug.values()) {
     if (story.image_url || !story.url) continue;
@@ -158,7 +168,10 @@ export async function ensureImages(workspaceDir, edition, { budgetMs = 4000 } = 
     }
     pending.push(story);
   }
-  if (!pending.length) return edition;
+  if (!pending.length) {
+    flushCache(); // persists a prune even when nothing needed fetching
+    return edition;
+  }
 
   const deadline = Date.now() + budgetMs;
   let cursor = 0;

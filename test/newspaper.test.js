@@ -10,6 +10,7 @@ import { renderArchive, renderArticle, renderFrontPage } from "../src/newspaper/
 import {
   listEditions,
   normaliseEdition,
+  pruneEditions,
   readEdition,
   readLatestEdition,
   writeEdition,
@@ -83,6 +84,15 @@ test("write then read round-trips through the workspace", () => {
   assert.equal(readLatestEdition(ws, "2026-09-22").lead.headline, "Older");
   assert.equal(readEdition(ws, "nope"), null);
   assert.equal(readEdition(ws, "2020-01-01"), null);
+});
+
+test("prune keeps only the newest edition, leaving other files alone", () => {
+  const ws = tmp();
+  for (const date of ["2026-09-21", "2026-09-22", "2026-09-23"]) writeEdition(ws, { date, sections: {} });
+  fs.writeFileSync(path.join(ws, "data", "newspaper", "link.txt"), "x");
+  pruneEditions(ws, "2026-09-23");
+  assert.deepEqual(listEditions(ws), ["2026-09-23"]);
+  assert.ok(fs.existsSync(path.join(ws, "data", "newspaper", "link.txt")));
 });
 
 test("a corrupt edition file reads as null rather than throwing", () => {
