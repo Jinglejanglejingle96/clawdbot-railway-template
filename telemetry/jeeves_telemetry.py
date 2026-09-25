@@ -9,9 +9,11 @@ import os
 import subprocess
 import threading
 import time
+import urllib.parse
 import approval_dispatch
 import triage_dispatch
 from http import HTTPStatus
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -521,6 +523,28 @@ def _refresh_forever() -> None:
         time.sleep(REFRESH_SECONDS)
 
 
+OBSERVABILITY_CLI = Path(os.environ.get("OPENCLAW_WORKSPACE_DIR", "/data/workspace")) / "scripts" / "observability_cli.py"
+
+
+def read_observability(query: str) -> tuple[HTTPStatus, dict[str, Any]]:
+    """Mission Control's read-only view of the workspace (Memory OS, skills, Jev, git).
+
+    The logic lives in J33V35 next to the schemas it reads; this is only the authenticated door.
+    """
+    request = {key: values[0] for key, values in urllib.parse.parse_qs(query).items()}
+    if not OBSERVABILITY_CLI.is_file():
+        return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "observability adapter not installed"}
+    try:
+        completed = subprocess.run(
+            ["python3", str(OBSERVABILITY_CLI)],
+            input=json.dumps(request), capture_output=True, text=True, timeout=25,
+            cwd=OBSERVABILITY_CLI.parent.parent,
+        )
+        return HTTPStatus.OK, json.loads(completed.stdout)
+    except (subprocess.TimeoutExpired, ValueError, OSError) as error:
+        return HTTPStatus.SERVICE_UNAVAILABLE, {"error": f"observability read failed: {type(error).__name__}"}
+
+
 class TelemetryHandler(BaseHTTPRequestHandler):
     server_version = "JeevesTelemetry/1"
 
@@ -547,6 +571,13 @@ class TelemetryHandler(BaseHTTPRequestHandler):
         path = self.path.partition("?")[0]
         if path == "/health":
             self._send_json(HTTPStatus.OK, {"ok": True})
+            return
+        if path == "/obs":
+            if not self._authorized():
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            status, payload = read_observability(self.path.partition("?")[2])
+            self._send_json(status, payload)
             return
         if path != "/telemetry":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})

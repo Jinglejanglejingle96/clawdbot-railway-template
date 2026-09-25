@@ -1365,7 +1365,7 @@ telemetryProxy.on("error", (_err, _req, res) => {
   }
 });
 
-app.get(["/health", "/telemetry"], (req, res) => {
+app.get(["/health", "/telemetry", "/obs"], (req, res) => {
   telemetryProxy.web(req, res);
 });
 
