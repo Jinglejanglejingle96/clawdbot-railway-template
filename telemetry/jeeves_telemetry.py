@@ -545,6 +545,28 @@ def read_observability(query: str) -> tuple[HTTPStatus, dict[str, Any]]:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": f"observability read failed: {type(error).__name__}"}
 
 
+ARTEMIS_LINK_PATH = Path(os.environ.get("ARTEMIS_LINK_PATH", "/data/artemis-link.json"))
+_last_link_write = 0.0
+
+
+def _note_watch_fetch(user_agent: str) -> None:
+    """Device Fabric heartbeat for the watch. ArtemisBridge only fetches telemetry while the watch's
+    BLE link is up, so its fetches are the watch's presence. Mission Control polls the same route with
+    httpx, so only the bridge's OkHttp client counts.
+    ponytail: User-Agent is a presence hint from token holders, not auth; a bridge header if it ever matters."""
+    global _last_link_write
+    now = time.time()
+    if not user_agent.lower().startswith("okhttp") or now - _last_link_write < 10:
+        return
+    _last_link_write = now
+    try:
+        tmp = ARTEMIS_LINK_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"last_fetch_ms": int(now * 1000)}), encoding="utf-8")
+        os.replace(tmp, ARTEMIS_LINK_PATH)
+    except OSError as error:
+        print(f"[jeeves-telemetry] artemis link write failed: {type(error).__name__}", flush=True)
+
+
 class TelemetryHandler(BaseHTTPRequestHandler):
     server_version = "JeevesTelemetry/1"
 
@@ -586,6 +608,7 @@ class TelemetryHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             return
+        _note_watch_fetch(self.headers.get("User-Agent", ""))
 
         with _snapshot_lock:
             payload = dict(_snapshot) if _snapshot is not None else None
