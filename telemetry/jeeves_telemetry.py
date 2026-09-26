@@ -568,6 +568,27 @@ def _note_watch_fetch(user_agent: str) -> None:
         print(f"[jeeves-telemetry] artemis link write failed: {type(error).__name__}", flush=True)
 
 
+FLIGHT_CLI = Path(os.environ.get("OPENCLAW_WORKSPACE_DIR", "/data/workspace")) / "scripts" / "flight_school_cli.py"
+FLIGHT_OPS = {"start", "layout_save", "layout_delete", "mission_save", "mission_delete"}
+
+
+def flight_control(payload: Any) -> tuple[HTTPStatus, dict[str, Any]]:
+    """Mission Control's Flight School actions. Only these ops pass; the CLI validates their contents and
+    runs simulations as a detached, niced background job, so this call returns in well under a second."""
+    if not isinstance(payload, dict) or payload.get("op") not in FLIGHT_OPS:
+        return HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"op must be one of {sorted(FLIGHT_OPS)}"}
+    if not FLIGHT_CLI.is_file():
+        return HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "flight school not installed"}
+    try:
+        completed = subprocess.run(
+            ["python3", str(FLIGHT_CLI)], input=json.dumps(payload), capture_output=True, text=True,
+            timeout=20, cwd=FLIGHT_CLI.parent.parent,
+        )
+        return HTTPStatus.OK, json.loads(completed.stdout)
+    except (subprocess.TimeoutExpired, ValueError, OSError) as error:
+        return HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"flight school call failed: {type(error).__name__}"}
+
+
 class TelemetryHandler(BaseHTTPRequestHandler):
     server_version = "JeevesTelemetry/1"
 
@@ -589,6 +610,21 @@ class TelemetryHandler(BaseHTTPRequestHandler):
         supplied = self.headers.get("Authorization", "")
         expected = f"Bearer {expected_token}" if expected_token else ""
         return bool(expected) and hmac.compare_digest(supplied, expected)
+
+    def _flight(self) -> None:
+        if not self._authorized():                       # Mission Control's token, not the watch command key
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if length < 1 or length > 65536:
+                raise ValueError("invalid body length")
+            payload = json.loads(self.rfile.read(length))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "malformed JSON"})
+            return
+        status, response = flight_control(payload)
+        self._send_json(status, response)
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = self.path.partition("?")[0]
@@ -620,6 +656,9 @@ class TelemetryHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = self.path.partition("?")[0]
+        if path == "/flight":
+            self._flight()
+            return
         if path != "/command":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
             return

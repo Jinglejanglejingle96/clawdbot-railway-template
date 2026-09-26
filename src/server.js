@@ -1390,6 +1390,29 @@ app.all("/command", (_req, res) => {
   res.status(405).json({ error: "method not allowed" });
 });
 
+// Flight School control for Mission Control (start simulation jobs, save rooms/missions). The telemetry
+// service authenticates and allowlists; J33V35's scripts/flight_school_cli.py validates everything.
+app.post("/flight", async (req, res) => {
+  try {
+    const response = await fetch(`${JEEVES_TELEMETRY_TARGET}/flight`, {
+      method: "POST",
+      headers: {
+        "Authorization": req.headers.authorization ?? "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+    const body = await response.text();
+    res.status(response.status).type("application/json").send(body);
+  } catch {
+    res.status(503).json({ error: "telemetry unavailable" });
+  }
+});
+
+app.all("/flight", (_req, res) => {
+  res.status(405).json({ error: "method not allowed" });
+});
+
 // --- THE JEEVES DAILY ---
 // Renders the editions REPORTER writes to <workspace>/data/newspaper/.
 // Must be registered before requireDashboardAuth: the router carries its own
