@@ -133,7 +133,7 @@ def _run_openclaw_pty_json(arguments: list[str]) -> dict[str, Any]:
     reader = threading.Thread(target=_drain, daemon=True)
     reader.start()
     process = subprocess.Popen(
-        ["openclaw", *arguments, "--json"], stdout=follower_fd, stderr=follower_fd, stdin=follower_fd
+        ["openclaw", *arguments, "--json"], stdout=follower_fd, stderr=subprocess.DEVNULL, stdin=follower_fd
     )
     os.close(follower_fd)  # only the child's inherited copy keeps the pty open now
     try:
