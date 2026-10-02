@@ -9,6 +9,7 @@ import httpProxy from "http-proxy";
 import * as tar from "tar";
 
 import { createNewspaperRouter } from "./newspaper/index.js";
+import { createMacroPlannerRouter } from "./macro-planner/index.js";
 
 // Migrate deprecated CLAWDBOT_* env vars → OPENCLAW_* so existing Railway deployments
 // keep working. Users should update their Railway Variables to use the new names.
@@ -317,6 +318,13 @@ function requireSetupAuth(req, res, next) {
 
 const app = express();
 app.disable("x-powered-by");
+// Planner photos are compressed client-side but can exceed the dashboard's
+// 1 MB JSON limit. Parse this isolated route before the shared body parser.
+app.use("/macros", express.json({ limit: "4mb" }), createMacroPlannerRouter({
+  workspaceDir: WORKSPACE_DIR,
+  stateDir: STATE_DIR,
+  setupPassword: SETUP_PASSWORD,
+}));
 app.use(express.json({ limit: "1mb" }));
 
 // Minimal health endpoint for Railway.
