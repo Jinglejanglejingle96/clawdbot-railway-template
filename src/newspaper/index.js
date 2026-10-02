@@ -11,6 +11,7 @@ import path from "node:path";
 import express from "express";
 
 import { ensureImages } from "./images.js";
+import { listIssues, monthNow, readIssue, refreshIssue, renderLibrary, MONTH } from "./library.js";
 import { renderArchive, renderArticle, renderEmpty, renderFrontPage } from "./render.js";
 import {
   DATE_RE,
@@ -107,6 +108,8 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
         `${base}${mountPath}?k=${token}\n`,
         "utf8",
       );
+      fs.mkdirSync(path.join(workspaceDir, "data", "library"), { recursive: true });
+      fs.writeFileSync(path.join(workspaceDir, "data", "library", "link.txt"), `${base}${mountPath}/library?k=${token}\n`, "utf8");
     } catch {
       // non-fatal
     }
@@ -181,6 +184,68 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
       .map((d) => editionSummary(workspaceDir, d))
       .filter(Boolean);
     res.type("html").set("Cache-Control", "private, max-age=60").send(renderArchive(entries, context(req, entries[0]?.date)));
+  });
+
+  // LIBRARIAN's monthly companion to the Daily, under the same private reading key.
+  let libraryRefresh = null;
+  let libraryCheckedAt = 0;
+  async function currentLibrary() {
+    const month = monthNow();
+    if (Date.now() - libraryCheckedAt > 5 * 60_000) {
+      if (!libraryRefresh) libraryRefresh = refreshIssue(workspaceDir, month)
+        .then((issue) => { libraryCheckedAt = Date.now(); return issue; })
+        .finally(() => { libraryRefresh = null; });
+      try { return await libraryRefresh; } catch (err) {
+        console.error(`[library] refresh failed: ${String(err)}`);
+      }
+    }
+    return readIssue(workspaceDir, month);
+  }
+  // Keep snapshots current even if nobody opens the page. At rollover, take
+  // one final snapshot of the previous month before starting the new issue.
+  let libraryMonth = monthNow();
+  const syncLibrary = async () => {
+    const now = monthNow();
+    if (now !== libraryMonth) {
+      const previous = libraryMonth;
+      libraryMonth = now;
+      libraryCheckedAt = 0;
+      try { await refreshIssue(workspaceDir, previous); } catch (err) { console.error(`[library] final ${previous} sync failed: ${String(err)}`); }
+    }
+    await currentLibrary();
+  };
+  setTimeout(() => { void (async () => {
+    const now = monthNow();
+    const previous = new Date(Date.UTC(Number(now.slice(0, 4)), Number(now.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+    if (!readIssue(workspaceDir, previous)) {
+      try { await refreshIssue(workspaceDir, previous); } catch (err) { console.error(`[library] initial ${previous} sync failed: ${String(err)}`); }
+    }
+    await syncLibrary();
+  })(); }, 10_000).unref();
+  setInterval(() => { if (monthNow() !== libraryMonth) void syncLibrary(); }, 60_000).unref();
+  setInterval(() => { void syncLibrary(); }, 30 * 60_000).unref();
+  const libraryContext = (req) => {
+    const key = typeof req.query.k === "string" && req.query.k ? `?k=${encodeURIComponent(req.query.k)}` : "";
+    return {
+      css: `${mountPath}/style.css${key}`,
+      link: (suffix) => suffix === "/daily" ? `${mountPath}${key}` : `${mountPath}/library${suffix}${key}`,
+    };
+  };
+  router.get("/library", async (req, res) => {
+    const issue = await currentLibrary();
+    if (!issue) return res.status(503).type("text/plain").send("The Jeeves Review is waiting for its first scheduler sync.");
+    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibrary(issue, libraryContext(req)));
+  });
+  router.get("/library/archive", (req, res) => {
+    const ctx = libraryContext(req);
+    const links = listIssues(workspaceDir).map((m) => `<li><a href="${ctx.link(`/${m}`)}">${m}</a></li>`).join("");
+    res.type("html").send(`<!doctype html><html lang="en"><head><meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Jeeves Review archive</title><link rel="stylesheet" href="${ctx.css}"></head><body><div class="sheet"><a class="masthead" href="${ctx.link("")}"><span class="the">The</span>Jeeves Review</a><div class="rule-double"></div><main class="archive"><h2>Monthly editions</h2><ul>${links || "<li>No editions yet</li>"}</ul></main></div></body></html>`);
+  });
+  router.get("/library/:month", async (req, res, next) => {
+    if (!MONTH.test(req.params.month)) return next();
+    const issue = req.params.month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, req.params.month);
+    if (!issue) return res.status(404).type("text/plain").send("No edition for that month.");
+    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibrary(issue, libraryContext(req)));
   });
 
   router.get("/", async (req, res, next) => {

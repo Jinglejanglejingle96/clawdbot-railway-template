@@ -285,7 +285,7 @@ function nameplate(ctx, { dateIso, edition, editionNo, index = [] }) {
           .map((n) => `<a href="#sec-${attr(n.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}">${esc(n)}</a>`)
           .join("")
       : `<a href="${attr(ctx.link("/"))}">Front Page</a>`
-  }<a class="ix-archive" href="${attr(ctx.link("/archive"))}">Archive</a></nav>
+  }<a href="${attr(ctx.link("/library"))}">The Jeeves Review</a><a class="ix-archive" href="${attr(ctx.link("/archive"))}">Archive</a></nav>
 </header>`;
 }
 
