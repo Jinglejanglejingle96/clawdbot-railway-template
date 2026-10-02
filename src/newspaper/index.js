@@ -247,7 +247,7 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
   router.get("/library", async (req, res) => {
     const issue = await currentLibrary();
     if (!issue) return res.status(503).type("text/plain").send("The Jeeves Review is waiting for its first scheduler sync.");
-    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, activeLibraryContext(req, issue.month)));
+    res.type("html").set("Cache-Control", "private, no-cache").send(renderLibraryPage(issue, activeLibraryContext(req, issue.month)));
   });
   router.get("/library/archive", (req, res) => {
     const ctx = libraryContext(req);
@@ -279,7 +279,7 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     const issue = req.params.month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, req.params.month);
     if (!issue) return res.status(404).type("text/plain").send("No edition for that month.");
     const ctx = req.params.month === monthNow() ? activeLibraryContext(req, issue.month) : libraryContext(req);
-    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, ctx));
+    res.type("html").set("Cache-Control", req.params.month === monthNow() ? "private, no-cache" : "private, max-age=60").send(renderLibraryPage(issue, ctx));
   });
 
   router.get("/", async (req, res, next) => {
