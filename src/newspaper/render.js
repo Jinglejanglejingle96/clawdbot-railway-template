@@ -259,6 +259,7 @@ ${when(description, (d) => `<meta name="description" content="${attr(d)}">`)}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400&display=swap">
 <link rel="stylesheet" href="${attr(ctx.css ?? ctx.link("/style.css"))}">
+${when(ctx.extraCss, (url) => `<link rel="stylesheet" href="${attr(url)}">`)}
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23faf7f0'/%3E%3Ctext x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='700' text-anchor='middle' fill='%2315110c'%3EJ%3C/text%3E%3C/svg%3E">
 </head>
 <body>
@@ -270,28 +271,28 @@ ${body}
 }
 
 function nameplate(ctx, { dateIso, edition, editionNo, index = [] }) {
-  const long = fmtDate(dateIso, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const long = ctx.dateLabel ?? fmtDate(dateIso, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return `<header>
 <div class="folio">
 <span>${esc(long)}</span>
 <span>${esc(edition)}</span>
 <span>${editionNo ? `No.&nbsp;${editionNo}` : "Jeeves Intelligence"}</span>
 </div>
-<a class="masthead" href="${attr(ctx.link("/"))}"><span class="the">The</span>Jeeves Daily</a>
+<a class="masthead" href="${attr(ctx.link("/"))}"><span class="the">The</span>${esc(ctx.publication ?? "Jeeves Daily")}</a>
 <div class="rule-double"></div>
 <nav class="indexstrip">${
     index.length
       ? index
           .map((n) => `<a href="#sec-${attr(n.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}">${esc(n)}</a>`)
           .join("")
-      : `<a href="${attr(ctx.link("/"))}">Front Page</a>`
-  }<a href="${attr(ctx.link("/library"))}">The Jeeves Review</a><a class="ix-archive" href="${attr(ctx.link("/archive"))}">Archive</a></nav>
+      : ctx.extraIndex ? "" : `<a href="${attr(ctx.link("/"))}">Front Page</a>`
+  }${ctx.extraIndex ?? ""}<a href="${attr(ctx.link(ctx.publication ? "/daily" : "/library"))}">${ctx.publication ? "Jeeves Daily" : "The Jeeves Review"}</a><a class="ix-archive" href="${attr(ctx.link("/archive"))}">Archive</a></nav>
 </header>`;
 }
 
 function colophon(ctx, edition) {
   const bits = [
-    `<span>The Jeeves Daily &middot; compiled by REPORTER</span>`,
+    `<span>The ${esc(ctx.publication ?? "Jeeves Daily")} &middot; compiled by ${esc(ctx.compiler ?? "REPORTER")}</span>`,
     edition?.coverage ? `<span>Coverage: ${esc(edition.coverage)}</span>` : "",
     edition?.generated_at ? `<span>Filed ${esc(fmtTimestamp(edition.generated_at))}</span>` : "",
     `<span><a href="${attr(ctx.link("/archive"))}">Past editions</a></span>`,
@@ -309,20 +310,22 @@ export function renderFrontPage(edition, ctx) {
     dateIso: edition.date,
     edition: edition.edition,
     editionNo: ctx.editionNo,
-    index: plan.index,
+    index: ctx.index ?? plan.index,
   })}
 ${tickerBand(plan.markets)}
 <main>
+${ctx.beforeSections ?? ""}
 <div class="frontpage${railInner ? "" : " solo"}">
 <div class="leadwell">${plan.lead ? leadStory(plan.lead, ctx) : ""}${plan.subLead ? secondLead(plan.subLead, ctx) : ""}</div>
 ${railInner ? `<div class="rail">${railInner}</div>` : ""}
 </div>
 ${plan.sections.map((s) => sectionBlock(s, ctx)).join("")}
+${ctx.afterSections ?? ""}
 </main>
 ${colophon(ctx, edition)}`;
 
   return shell({
-    title: `The Jeeves Daily — ${fmtDate(edition.date, { day: "numeric", month: "long", year: "numeric" })}`,
+    title: `The ${ctx.publication ?? "Jeeves Daily"} — ${ctx.dateLabel ?? fmtDate(edition.date, { day: "numeric", month: "long", year: "numeric" })}`,
     description: plan.lead?.headline ?? "",
     ctx,
     body,
@@ -355,8 +358,8 @@ ${pullQuote(story)}
 <div class="origin">
 ${
   story.url
-    ? `This is REPORTER&rsquo;s summary. Read the full piece at <a href="${attr(story.url)}" rel="noopener noreferrer nofollow" target="_blank">${esc(story.source || new URL(story.url).hostname.replace(/^www\./, ""))}&nbsp;&#8599;</a>.`
-    : `Filed by REPORTER${when(story.source, (s) => ` from ${esc(s)}`)}. No public link was available.`
+    ? `This is ${esc(ctx.compiler ?? "REPORTER")}&rsquo;s ${ctx.compiler === "LIBRARIAN" ? "summary and analysis" : "summary"}. Read the full piece at <a href="${attr(story.url)}" rel="noopener noreferrer nofollow" target="_blank">${esc(story.source || new URL(story.url).hostname.replace(/^www\./, ""))}&nbsp;&#8599;</a>.`
+    : `Filed by ${esc(ctx.compiler ?? "REPORTER")}${when(story.source, (s) => ` from ${esc(s)}`)}. No public link was available.`
 }
 </div>
 </main>
@@ -375,7 +378,7 @@ ${
 }
 ${colophon(ctx, edition)}`;
 
-  return shell({ title: `${story.headline} — The Jeeves Daily`, description: story.deck, ctx, body });
+  return shell({ title: `${story.headline} — The ${ctx.publication ?? "Jeeves Daily"}`, description: story.deck, ctx, body });
 }
 
 export function renderArchive(entries, ctx) {

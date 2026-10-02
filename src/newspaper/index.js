@@ -11,7 +11,8 @@ import path from "node:path";
 import express from "express";
 
 import { ensureImages } from "./images.js";
-import { listIssues, monthNow, readIssue, refreshIssue, renderLibrary, MONTH } from "./library.js";
+import { listIssues, monthNow, readIssue, refreshIssue, scannerOp, validScannerAction, MONTH } from "./library.js";
+import { libraryEdition, renderLibraryPage } from "./library-page.js";
 import { renderArchive, renderArticle, renderEmpty, renderFrontPage } from "./render.js";
 import {
   DATE_RE,
@@ -185,6 +186,8 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
       .filter(Boolean);
     res.type("html").set("Cache-Control", "private, max-age=60").send(renderArchive(entries, context(req, entries[0]?.date)));
   });
+  router.get("/library/scanner.css", (_req, res) => res.type("text/css").send(fs.readFileSync(new URL("./scanner.css", import.meta.url), "utf8")));
+  router.get("/library/scanner.js", (_req, res) => res.type("text/javascript").send(fs.readFileSync(new URL("./scanner-client.js", import.meta.url), "utf8")));
 
   // LIBRARIAN's monthly companion to the Daily, under the same private reading key.
   let libraryRefresh = null;
@@ -228,24 +231,45 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     const key = typeof req.query.k === "string" && req.query.k ? `?k=${encodeURIComponent(req.query.k)}` : "";
     return {
       css: `${mountPath}/style.css${key}`,
+      scannerCss: `${mountPath}/library/scanner.css${key}`,
       link: (suffix) => suffix === "/daily" ? `${mountPath}${key}` : `${mountPath}/library${suffix}${key}`,
     };
   };
   router.get("/library", async (req, res) => {
     const issue = await currentLibrary();
     if (!issue) return res.status(503).type("text/plain").send("The Jeeves Review is waiting for its first scheduler sync.");
-    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibrary(issue, libraryContext(req)));
+    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, libraryContext(req)));
   });
   router.get("/library/archive", (req, res) => {
     const ctx = libraryContext(req);
     const links = listIssues(workspaceDir).map((m) => `<li><a href="${ctx.link(`/${m}`)}">${m}</a></li>`).join("");
     res.type("html").send(`<!doctype html><html lang="en"><head><meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Jeeves Review archive</title><link rel="stylesheet" href="${ctx.css}"></head><body><div class="sheet"><a class="masthead" href="${ctx.link("")}"><span class="the">The</span>Jeeves Review</a><div class="rule-double"></div><main class="archive"><h2>Monthly editions</h2><ul>${links || "<li>No editions yet</li>"}</ul></main></div></body></html>`);
   });
+  router.get("/library/scanner/data", async (_req, res) => {
+    try { res.json(await scannerOp(workspaceDir, { op: "scanner" })); }
+    catch (error) { res.status(503).json({ ok: false, error: String(error) }); }
+  });
+  router.post("/library/scanner/action", async (req, res) => {
+    if (!validScannerAction(req.body)) return res.status(400).json({ ok: false, error: "Invalid SCANNER action" });
+    try { res.json(await scannerOp(workspaceDir, { op: "scanner_action", ...req.body })); }
+    catch (error) { res.status(503).json({ ok: false, error: String(error) }); }
+  });
+  router.get("/library/:date/s/:slug", async (req, res, next) => {
+    const { date, slug } = req.params;
+    if (!DATE_RE.test(date) || date.slice(8) !== "01") return next();
+    const month = date.slice(0, 7);
+    const issue = month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, month);
+    const edition = issue && libraryEdition(issue);
+    const story = findStory(edition, slug);
+    if (!story) return res.status(404).type("text/plain").send("This report is unavailable.");
+    const ctx = libraryContext(req);
+    res.type("html").send(renderArticle(edition, story, { ...ctx, date, publication: "Jeeves Review", compiler: "LIBRARIAN", extraCss: ctx.scannerCss }));
+  });
   router.get("/library/:month", async (req, res, next) => {
     if (!MONTH.test(req.params.month)) return next();
     const issue = req.params.month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, req.params.month);
     if (!issue) return res.status(404).type("text/plain").send("No edition for that month.");
-    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibrary(issue, libraryContext(req)));
+    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, libraryContext(req)));
   });
 
   router.get("/", async (req, res, next) => {

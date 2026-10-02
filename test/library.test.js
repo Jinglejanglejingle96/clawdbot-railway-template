@@ -4,6 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { assembleIssue, librarianJobs, monthNow, readIssue, refreshIssue, renderLibrary } from "../src/newspaper/library.js";
+import { articlesFromIssue, linkedArticles } from "../src/newspaper/library-articles.js";
+import { renderLibraryPage } from "../src/newspaper/library-page.js";
+import { validScannerAction } from "../src/newspaper/library.js";
 
 test("every LIBRARIAN job is included, including silent and failed runs, within the London month", () => {
   const jobs = [
@@ -40,6 +43,43 @@ test("complete archival copy replaces the scheduler's shortened summary", () => 
     a: [{ action: "finished", runAtMs: at, summary: "Short…" }],
   }, null, { a: [{ started_at: "2026-10-01T20:00:10Z", content: "Complete report with every item" }] });
   assert.equal(issue.jobs[0].runs[0].summary, "Complete report with every item");
+});
+
+test("curated items render as linked reports with source, summary and analysis", () => {
+  const at = Date.parse("2026-10-01T20:00:00Z");
+  const issue = assembleIssue("2026-10", [{ id: "a", name: "librarian-digest", enabled: true }], {
+    a: [{ action: "finished", runAtMs: at, summary: "Short" }],
+  }, { available: true, items: [], metrics: {}, config: {}, sources: [] }, {
+    a: [{ started_at: "2026-10-01T20:00:10Z", content: "Complete", items: [
+      { title: "A useful paper", url: "https://example.org/paper", source: "Journal", summary: "Findings", analysis: "Relevant to Jeeves", limitations: "Small sample", priority: 5 },
+      { title: "No source", summary: "Must not invent a link" },
+    ] }],
+  });
+  const edition = articlesFromIssue(issue);
+  assert.equal(edition.storyCount, 1);
+  const html = renderLibraryPage(issue, { link: (p) => `/news/library${p}`, css: "/news/style.css", scannerCss: "/news/library/scanner.css" });
+  assert.match(html, /A useful paper/);
+  assert.match(html, /Findings/);
+  assert.match(html, /https:\/\/example.org\/paper/);
+  assert.match(html, /id="scanner-app"/);
+  assert.match(html, /Run archive/);
+  assert.doesNotMatch(html, /No source/);
+  assert.equal(edition.lead.why_it_matters, "Relevant to Jeeves");
+});
+
+test("SCANNER action endpoint accepts only Manor actions", () => {
+  assert.equal(validScannerAction({ action: "feedback", key: "candidate", signal: "very_relevant" }), true);
+  assert.equal(validScannerAction({ action: "deepdive", key: "candidate" }), true);
+  assert.equal(validScannerAction({ action: "status", key: "candidate", status: "ADOPTED" }), true);
+  assert.equal(validScannerAction({ action: "status", key: "candidate", status: "DELETED" }), false);
+  assert.equal(validScannerAction({ action: "feedback", key: "candidate", signal: "erase" }), false);
+});
+
+test("old ranked newsletter entries keep each article's own link", () => {
+  const items = linkedArticles("## TLDR Data\n* **[5/5] First paper**\n  * **Link:** https://example.org/one\n  * **Summary:** First summary\n* **[4/5] Second paper**\n  * **Link:** https://example.org/two\n  * **Summary:** Second summary");
+  assert.deepEqual(items.map((item) => [item.title, item.url]), [
+    ["First paper", "https://example.org/one"], ["Second paper", "https://example.org/two"],
+  ]);
 });
 
 test("refresh writes the monthly snapshot from scheduler and SCANNER", async () => {

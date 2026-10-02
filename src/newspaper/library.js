@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 
 const exec = promisify(execFile);
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -32,6 +32,34 @@ export function librarianJobs(jobs) {
   return jobs.filter((job) => /^librarian[-:]/i.test(job.name ?? "") || /^librarian:/i.test(job.declarationKey ?? ""));
 }
 
+export function scannerOp(workspaceDir, request) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("python3", [path.join(workspaceDir, "scripts", "observability_cli.py")], { cwd: workspaceDir, stdio: ["pipe", "pipe", "pipe"] });
+    let output = "", error = "";
+    const timeout = setTimeout(() => child.kill(), 65_000);
+    child.stdout.on("data", (chunk) => { output += chunk; if (output.length > 16 * 1024 * 1024) child.kill(); });
+    child.stderr.on("data", (chunk) => { error += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) return reject(new Error(error || `scanner helper exited ${code}`));
+      try { resolve(JSON.parse(output)); } catch (err) { reject(err); }
+    });
+    child.stdin.end(JSON.stringify(request));
+  });
+}
+
+export function validScannerAction(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const allowed = new Set(["action", "key", "signal", "status", "why", "note"]);
+  if (Object.keys(body).some((key) => !allowed.has(key))) return false;
+  if (typeof body.key !== "string" || !body.key || body.key.length > 200) return false;
+  if (!["feedback", "status", "refer", "deepdive", "promote"].includes(body.action)) return false;
+  if (body.action === "feedback" && !["not_useful", "already_have", "too_speculative", "more_like_this", "very_relevant"].includes(body.signal)) return false;
+  if (body.action === "status" && !["DEFERRED", "ADOPTED"].includes(body.status)) return false;
+  return true;
+}
+
 function fullResults(workspaceDir, job) {
   const dir = path.join(directory(workspaceDir), "full", job.id);
   try {
@@ -57,6 +85,7 @@ export function assembleIssue(month, jobs, histories, scanner, captures = {}) {
         at: run.runAtIso ?? new Date(run.runAtMs ?? run.ts).toISOString(),
         status: run.status ?? "unknown",
         summary: (captures[job.id] ?? []).find((entry) => Math.abs(Date.parse(entry.started_at) - (run.runAtMs ?? run.ts)) < 5 * 60_000)?.content ?? run.summary ?? "No user-facing result recorded.",
+        items: (captures[job.id] ?? []).find((entry) => Math.abs(Date.parse(entry.started_at) - (run.runAtMs ?? run.ts)) < 5 * 60_000)?.items ?? [],
         delivery: run.deliveryStatus ?? "",
         runId: run.sessionId ?? "",
       })),
@@ -81,7 +110,7 @@ export async function refreshIssue(workspaceDir, month = monthNow(), run = comma
   }
   let scanner = prior?.scanner ?? null;
   try {
-    scanner = await run(["python3", "-c", "import json; from scripts.observability_cli import op_scanner; print(json.dumps(op_scanner({}), default=str))"], { cwd: workspaceDir });
+    scanner = run === command ? await scannerOp(workspaceDir, { op: "scanner" }) : await run(["python3", "-c", "scanner"]);
   } catch { /* Keep the most recent snapshot. */ }
   const captures = Object.fromEntries(jobs.map((job) => [job.id, fullResults(workspaceDir, job)]));
   const issue = assembleIssue(month, jobs, histories, scanner, captures);
