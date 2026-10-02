@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { assembleIssue, librarianJobs, monthNow, readIssue, refreshIssue, renderLibrary } from "../src/newspaper/library.js";
-import { articlesFromIssue, linkedArticles } from "../src/newspaper/library-articles.js";
+import { articlesFromIssue, linkedArticles, weekStart } from "../src/newspaper/library-articles.js";
 import { renderLibraryPage } from "../src/newspaper/library-page.js";
 import { validScannerAction } from "../src/newspaper/library.js";
 
@@ -80,6 +80,23 @@ test("old ranked newsletter entries keep each article's own link", () => {
   assert.deepEqual(items.map((item) => [item.title, item.url]), [
     ["First paper", "https://example.org/one"], ["Second paper", "https://example.org/two"],
   ]);
+});
+
+test("weekly feed resets at Sunday 23:00 London time through DST changes", () => {
+  assert.equal(weekStart(new Date("2026-10-04T21:59:59Z")), "2026-09-27T22:00:00.000Z");
+  assert.equal(weekStart(new Date("2026-10-04T22:00:00Z")), "2026-10-04T22:00:00.000Z");
+  assert.equal(weekStart(new Date("2026-10-25T22:59:59Z")), "2026-10-18T22:00:00.000Z");
+  assert.equal(weekStart(new Date("2026-10-25T23:00:00Z")), "2026-10-25T23:00:00.000Z");
+  assert.equal(weekStart(new Date("2026-03-29T22:00:00Z")), "2026-03-29T22:00:00.000Z");
+});
+
+test("current week includes prior-month runs and drops earlier articles", () => {
+  const run = (at, title) => ({ at, summary: "", items: [{ title, url: `https://example.org/${title}`, summary: title }] });
+  const current = { month: "2026-10", jobs: [{ runs: [run("2026-10-01T12:00:00Z", "october")] }] };
+  const previous = { month: "2026-09", jobs: [{ runs: [run("2026-09-29T12:00:00Z", "september"), run("2026-09-25T12:00:00Z", "older")] }] };
+  const edition = articlesFromIssue(current, { since: "2026-09-27T22:00:00.000Z", extraIssues: [previous] });
+  assert.deepEqual([...edition.bySlug.values()].map((item) => item.headline).sort(), ["october", "september"]);
+  assert.equal(articlesFromIssue(current, { since: "2026-10-04T22:00:00.000Z", extraIssues: [previous] }).storyCount, 0);
 });
 
 test("refresh writes the monthly snapshot from scheduler and SCANNER", async () => {

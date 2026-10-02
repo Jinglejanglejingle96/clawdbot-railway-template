@@ -8,6 +8,21 @@ const sourceUrl = (value) => {
   } catch { return ""; }
 };
 
+// The reading feed rolls over at 23:00 Sunday in London, including DST weeks.
+export function weekStart(now = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23",
+  }).formatToParts(now).map(({ type, value }) => [type, value]));
+  const localDay = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+  const daysBack = new Date(localDay).getUTCDay() + (new Date(localDay).getUTCDay() === 0 && Number(parts.hour) < 23 ? 7 : 0);
+  const sundayAt23 = localDay - daysBack * 86400000 + 23 * 3600000;
+  const zone = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", timeZoneName: "shortOffset" })
+    .formatToParts(new Date(sundayAt23)).find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  const offset = Number(zone.match(/^GMT\+?(\d+)/)?.[1] ?? 0);
+  return new Date(sundayAt23 - offset * 3600000).toISOString();
+}
+
 // Older cron output has prose rather than structured items. Recover only
 // titled blocks with an actual source URL; never invent a link or analysis.
 export function linkedArticles(text) {
@@ -42,11 +57,12 @@ export function linkedArticles(text) {
   });
 }
 
-export function articlesFromIssue(issue) {
+export function articlesFromIssue(issue, { since, extraIssues = [] } = {}) {
   const seen = new Set();
   const sections = {};
-  for (const job of issue.jobs ?? []) {
+  for (const job of [issue, ...extraIssues].flatMap((source) => source?.jobs ?? [])) {
     for (const run of [...(job.runs ?? [])].reverse()) {
+      if (since && (!Number.isFinite(Date.parse(run.at)) || Date.parse(run.at) < Date.parse(since))) continue;
       const items = Array.isArray(run.items) && run.items.length ? run.items : linkedArticles(run.summary);
       for (const item of items) {
         const url = sourceUrl(item.url);

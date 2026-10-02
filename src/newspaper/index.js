@@ -13,6 +13,7 @@ import express from "express";
 import { ensureImages } from "./images.js";
 import { listIssues, monthNow, readIssue, refreshIssue, scannerOp, validScannerAction, MONTH } from "./library.js";
 import { libraryEdition, renderLibraryPage } from "./library-page.js";
+import { weekStart } from "./library-articles.js";
 import { renderArchive, renderArticle, renderEmpty, renderFrontPage } from "./render.js";
 import {
   DATE_RE,
@@ -235,10 +236,18 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
       link: (suffix) => suffix === "/daily" ? `${mountPath}${key}` : `${mountPath}/library${suffix}${key}`,
     };
   };
+  const activeLibraryContext = (req, month) => {
+    const since = weekStart();
+    const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+    return {
+      ...libraryContext(req), since,
+      extraIssues: since.slice(0, 7) === previousMonth ? [readIssue(workspaceDir, previousMonth)].filter(Boolean) : [],
+    };
+  };
   router.get("/library", async (req, res) => {
     const issue = await currentLibrary();
     if (!issue) return res.status(503).type("text/plain").send("The Jeeves Review is waiting for its first scheduler sync.");
-    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, libraryContext(req)));
+    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, activeLibraryContext(req, issue.month)));
   });
   router.get("/library/archive", (req, res) => {
     const ctx = libraryContext(req);
@@ -259,17 +268,18 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     if (!DATE_RE.test(date) || date.slice(8) !== "01") return next();
     const month = date.slice(0, 7);
     const issue = month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, month);
-    const edition = issue && libraryEdition(issue);
+    const ctx = month === monthNow() ? activeLibraryContext(req, month) : libraryContext(req);
+    const edition = issue && libraryEdition(issue, ctx);
     const story = findStory(edition, slug);
     if (!story) return res.status(404).type("text/plain").send("This report is unavailable.");
-    const ctx = libraryContext(req);
     res.type("html").send(renderArticle(edition, story, { ...ctx, date, publication: "Jeeves Review", compiler: "LIBRARIAN", extraCss: ctx.scannerCss }));
   });
   router.get("/library/:month", async (req, res, next) => {
     if (!MONTH.test(req.params.month)) return next();
     const issue = req.params.month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, req.params.month);
     if (!issue) return res.status(404).type("text/plain").send("No edition for that month.");
-    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, libraryContext(req)));
+    const ctx = req.params.month === monthNow() ? activeLibraryContext(req, issue.month) : libraryContext(req);
+    res.type("html").set("Cache-Control", "private, max-age=60").send(renderLibraryPage(issue, ctx));
   });
 
   router.get("/", async (req, res, next) => {
