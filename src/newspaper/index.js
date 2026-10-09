@@ -24,6 +24,7 @@ import {
   pruneEditions,
   readEdition,
   readLatestEdition,
+  readNewswire,
 } from "./store.js";
 
 const COOKIE = "jd_key";
@@ -293,7 +294,8 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
       }
       pruneEditions(workspaceDir, edition.date);
       await ensureImages(workspaceDir, edition, { prune: true });
-      res.type("html").set("Cache-Control", "private, max-age=60").send(renderFrontPage(edition, context(req, edition.date)));
+      const ctx = { ...context(req, edition.date), newswire: readNewswire(workspaceDir) };
+      res.type("html").set("Cache-Control", "private, max-age=60").send(renderFrontPage(edition, ctx));
     } catch (err) {
       next(err);
     }

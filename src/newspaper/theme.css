@@ -470,6 +470,31 @@ a:hover .figure img { filter: saturate(1) contrast(1.04); }
   line-height: 1;
 }
 
+/* ── NEWSWIRE (shares the Briefing box) ────────────────────────────────── */
+
+.newswire { border-top-color: var(--accent); scroll-margin-top: 1rem; }
+.nw-item { border-top: 1px solid var(--rule-hair); padding: 0.55rem 0; }
+.nw-item:first-of-type { border-top: 0; }
+.nw-item summary { cursor: pointer; list-style-position: outside; }
+.nw-kind, .nw-time {
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.nw-time { color: var(--faint); margin-left: 0.5rem; }
+.nw-hed { display: block; font-family: var(--display); font-weight: 600; font-size: 1rem; line-height: 1.3; margin-top: 0.2rem; }
+.nw-body {
+  margin-top: 0.5rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ── Sections ──────────────────────────────────────────────────────────── */
 
 .section { margin-bottom: 3rem; scroll-margin-top: 1rem; }

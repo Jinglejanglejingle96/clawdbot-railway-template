@@ -192,6 +192,43 @@ ${body}
 </aside>`;
 }
 
+/** Plain text with its URLs made clickable. URLs are escaped only, never typeset. */
+function linkify(text) {
+  return String(text ?? "")
+    .split(/(https?:\/\/[^\s<>"]+)/)
+    .map((part, i) =>
+      i % 2 ? `<a class="plain" href="${attr(part)}" rel="noopener noreferrer nofollow" target="_blank">${escapeHtml(part)}</a>` : esc(part),
+    )
+    .join("");
+}
+
+/**
+ * NEWSWIRE's alerts (FLASH, UPDATE, DIGEST) as a panel at the head of the rail.
+ * Each item is the text NEWSWIRE used to send to Telegram: its first line is
+ * the kind, the next non-empty line the headline, the rest the detail.
+ */
+function newswirePanel(items) {
+  if (!items?.length) return "";
+  const rows = items
+    .map((item, n) => {
+      const lines = item.text.split("\n");
+      const kind = lines[0].replace(/^\W*NEWSWIRE\s*(?:—\s*)?/u, "") || "Alert";
+      const h = lines.findIndex((l, i) => i > 0 && l.trim());
+      const hed = h > 0 ? lines[h].trim() : "";
+      const rest = (h > 0 ? lines.slice(h + 1) : lines.slice(1)).join("\n").trim();
+      return `<details class="nw-item"${n === 0 ? " open" : ""}>
+<summary><span class="nw-kind">${esc(kind)}</span>${when(fmtTimestamp(item.at), (t) => `<span class="nw-time">${esc(t)}</span>`)}${when(hed, (t) => `<span class="nw-hed">${esc(t)}</span>`)}</summary>
+${when(rest, (r) => `<div class="nw-body">${linkify(r)}</div>`)}
+</details>`;
+    })
+    .join("");
+  return `<aside class="briefing newswire" id="newswire">
+<span class="stamp">Live wire</span>
+<h2>NEWSWIRE</h2>
+${rows}
+</aside>`;
+}
+
 /** Full-width ruled ticker band, the way a financial paper sets its front. */
 function tickerBand(groups) {
   if (!groups.length) return "";
@@ -304,9 +341,10 @@ function colophon(ctx, edition) {
 
 export function renderFrontPage(edition, ctx) {
   const plan = planEdition(edition);
-  const railInner = [briefingBox(edition), plan.rail.map((s) => railStory(s, ctx)).join("")].join("");
+  const railInner = [newswirePanel(ctx.newswire), briefingBox(edition), plan.rail.map((s) => railStory(s, ctx)).join("")].join("");
+  const navCtx = ctx.newswire?.length ? { ...ctx, extraIndex: `${ctx.extraIndex ?? ""}<a href="#newswire">Newswire</a>` } : ctx;
 
-  const body = `${nameplate(ctx, {
+  const body = `${nameplate(navCtx, {
     dateIso: edition.date,
     edition: edition.edition,
     editionNo: ctx.editionNo,

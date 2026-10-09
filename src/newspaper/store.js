@@ -99,6 +99,16 @@ export function pruneEditions(workspaceDir, keepDate) {
   }
 }
 
+/** NEWSWIRE's rolling alert list (newest first), written by scripts/newswire_cli.py. */
+export function readNewswire(workspaceDir) {
+  try {
+    const items = JSON.parse(fs.readFileSync(path.join(newspaperDir(workspaceDir), "newswire.json"), "utf8"));
+    return Array.isArray(items) ? items.filter((i) => typeof i?.text === "string" && i.text.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function writeEdition(workspaceDir, edition) {
   const date = edition?.date;
   if (!DATE_RE.test(date ?? "")) throw new Error("edition.date must be YYYY-MM-DD");

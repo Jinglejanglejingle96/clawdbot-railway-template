@@ -13,6 +13,7 @@ import {
   pruneEditions,
   readEdition,
   readLatestEdition,
+  readNewswire,
   writeEdition,
 } from "../src/newspaper/store.js";
 
@@ -241,6 +242,28 @@ test("front page renders every required part", () => {
   assert.match(html, /onerror=/); // broken-image guard is present
   // The numeric importance score must never reach the reader.
   assert.doesNotMatch(html, /importance/i);
+});
+
+test("NEWSWIRE alerts get a rail panel and a nav tab, with live links", () => {
+  const dir = tmp();
+  fs.mkdirSync(path.join(dir, "data", "newspaper"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "data", "newspaper", "newswire.json"),
+    JSON.stringify([
+      { at: "2026-09-23T08:00:00+00:00", text: "🚨 NEWSWIRE — HIGH IMPACT\n\nQuake <hits> Osaka\n\nSources:\n- USGS: https://usgs.gov/e/2026-09-23-x" },
+      { at: "2026-09-23T07:00:00+00:00", text: "" },
+    ]),
+  );
+  const newswire = readNewswire(dir);
+  assert.equal(newswire.length, 1); // empty entries are dropped
+  const html = renderFrontPage(bigEdition, { ...ctx(), newswire });
+  assert.match(html, /id="newswire"/);
+  assert.match(html, /<a href="#newswire">Newswire<\/a>/);
+  assert.match(html, /HIGH IMPACT/);
+  assert.match(html, /Quake &lt;hits&gt; Osaka/);
+  assert.match(html, /href="https:\/\/usgs.gov\/e\/2026-09-23-x"/); // url not typeset into en dashes
+  assert.equal(readNewswire(tmp()).length, 0); // no file: no panel
+  assert.doesNotMatch(renderFrontPage(bigEdition, ctx()), /newswire/i);
 });
 
 test("a story with no image renders no figure and no empty frame", () => {
