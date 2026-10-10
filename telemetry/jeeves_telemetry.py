@@ -18,7 +18,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 
-REFRESH_SECONDS = 15
+# Each refresh runs two openclaw CLI processes (~1.4 s of CPU each). At 15 s, around the clock, that was over
+# half of the Jeeves container's CPU (measured 2026-10-09); 60 s, and only while someone is fetching, is plenty
+# for the watch and Mission Control.
+REFRESH_SECONDS = 60
+IDLE_AFTER_SECONDS = 300
 # Anthropic's usage-quota endpoint enforces a much tighter rate limit than OpenAI's - polling
 # this often (previously 45s, barely above the command's own 40s worst-case runtime) kept it
 # permanently 429'd. openai/status calls stayed independent and were never affected.
@@ -71,6 +75,9 @@ USAGE_COMMAND_TIMEOUT_SECONDS = 40
 
 _snapshot_lock = threading.Lock()
 _snapshot: dict[str, Any] | None = None
+# Startup counts as a fetch, so a snapshot exists before the first caller arrives.
+_last_fetch = time.monotonic()
+_wake = threading.Event()
 _usage_lock = threading.Lock()
 _usage_snapshot: dict[str, int | None] | None = None
 _usage_refreshed_at = 0.0
@@ -511,17 +518,19 @@ def _push_quota_forever() -> None:
 def _refresh_forever() -> None:
     global _snapshot
     while True:
-        try:
-            fresh = collect_snapshot()
-        except Exception as error:
-            with _snapshot_lock:
-                _snapshot = None
-            print(f"[jeeves-telemetry] refresh unavailable: {type(error).__name__}", flush=True)
-        else:
-            with _snapshot_lock:
-                _snapshot = fresh
-            print("[jeeves-telemetry] snapshot refreshed", flush=True)
-        time.sleep(REFRESH_SECONDS)
+        # Nobody has fetched for a while: skip the CLI calls. A fetch after an idle spell wakes this loop.
+        if time.monotonic() - _last_fetch <= IDLE_AFTER_SECONDS:
+            try:
+                fresh = collect_snapshot()
+            except Exception as error:
+                with _snapshot_lock:
+                    _snapshot = None
+                print(f"[jeeves-telemetry] refresh unavailable: {type(error).__name__}", flush=True)
+            else:
+                with _snapshot_lock:
+                    _snapshot = fresh
+        _wake.wait(REFRESH_SECONDS)
+        _wake.clear()
 
 
 OBSERVABILITY_CLI = Path(os.environ.get("OPENCLAW_WORKSPACE_DIR", "/data/workspace")) / "scripts" / "observability_cli.py"
@@ -646,6 +655,11 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             return
         _note_watch_fetch(self.headers.get("User-Agent", ""))
+        global _last_fetch
+        idle = time.monotonic() - _last_fetch > IDLE_AFTER_SECONDS
+        _last_fetch = time.monotonic()
+        if idle:
+            _wake.set()   # refresh now; this caller gets the last snapshot
 
         with _snapshot_lock:
             payload = dict(_snapshot) if _snapshot is not None else None
