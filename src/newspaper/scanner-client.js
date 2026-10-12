@@ -1,7 +1,7 @@
 // Same SCANNER view and actions as Jeeves Manor, rendered inside the Review.
 const root = document.getElementById("scanner-app");
 const state = {
-  data: JSON.parse(document.getElementById("scanner-data").textContent),
+  data: null,
   view: "priority", open: null, busy: false, message: "",
 };
 const VIEWS = [
@@ -93,4 +93,9 @@ root.addEventListener("click", async (event) => {
 root.addEventListener("keydown", (event) => {
   if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-item]")) { event.preventDefault(); state.open = event.target.dataset.item; render(); }
 });
+try {
+  const response = await fetch(`/news/library/scanner/data${auth}`, { credentials: "same-origin" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  state.data = await response.json();
+} catch (error) { state.data = { available: false, reason: `could not load (${error.message})` }; }
 render();

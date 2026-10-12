@@ -116,3 +116,11 @@ test("refresh writes the monthly snapshot from scheduler and SCANNER", async () 
     assert.ok(calls[1].includes("200"));
   } finally { fs.rmSync(ws, { recursive: true, force: true }); }
 });
+
+test("the Review page does not inline SCANNER data; scanner.js fetches it", () => {
+  const issue = assembleIssue("2026-10", [], {}, { available: true, items: Array.from({ length: 400 }, (_, i) => ({ key: `k${i}`, title: "x".repeat(2000) })) });
+  const html = renderLibraryPage(issue, { link: (p) => `/news/library${p}`, css: "/news/style.css", scannerCss: "/news/library/scanner.css" });
+  assert.doesNotMatch(html, /scanner-data/);
+  assert.ok(html.length < 100_000, `page is ${html.length} bytes`);
+  assert.match(html, /\/news\/library\/scanner\.js/);
+});

@@ -7,6 +7,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 
 import express from "express";
 
@@ -255,9 +256,14 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     const links = listIssues(workspaceDir).map((m) => `<li><a href="${ctx.link(`/${m}`)}">${m}</a></li>`).join("");
     res.type("html").send(`<!doctype html><html lang="en"><head><meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Jeeves Review archive</title><link rel="stylesheet" href="${ctx.css}"></head><body><div class="sheet"><a class="masthead" href="${ctx.link("")}"><span class="the">The</span>Jeeves Review</a><div class="rule-double"></div><main class="archive"><h2>Monthly editions</h2><ul>${links || "<li>No editions yet</li>"}</ul></main></div></body></html>`);
   });
-  router.get("/library/scanner/data", async (_req, res) => {
-    try { res.json(await scannerOp(workspaceDir, { op: "scanner" })); }
-    catch (error) { res.status(503).json({ ok: false, error: String(error) }); }
+  router.get("/library/scanner/data", async (req, res) => {
+    let body;
+    try { body = JSON.stringify(await scannerOp(workspaceDir, { op: "scanner" })); }
+    catch (error) { return res.status(503).json({ ok: false, error: String(error) }); }
+    // ~800 KB of JSON: gzip it (no compression middleware in this app).
+    res.type("json").set("Vary", "Accept-Encoding");
+    if (!/\bgzip\b/.test(req.get("accept-encoding") ?? "")) return res.send(body);
+    res.set("Content-Encoding", "gzip").send(zlib.gzipSync(body));
   });
   router.post("/library/scanner/action", async (req, res) => {
     if (!validScannerAction(req.body)) return res.status(400).json({ ok: false, error: "Invalid SCANNER action" });

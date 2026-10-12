@@ -22,6 +22,6 @@ export function renderLibraryPage(issue, ctx) {
     index: [],
     extraIndex: '<a href="#librarian">LIBRARIAN</a><a href="#scanner">SCANNER</a><a href="#runs">Run archive</a>',
     beforeSections: `<section id="librarian"><p class="library-note">${edition.storyCount} curated articles, papers and other reading items ${ctx.since ? "this week" : "this month"}. Each report links to its original source.${ctx.since ? " The reading feed starts fresh every Sunday at 23:00 London time." : ""}</p></section>`,
-    afterSections: `${edition.storyCount ? "" : '<section class="section" id="sec-librarian"><header class="sectionhead"><h2>LIBRARIAN</h2></header><p>No curated articles with original links have been filed in this period yet.</p></section>'}${renderScannerSection(issue.scanner)}${logs}`,
+    afterSections: `${edition.storyCount ? "" : '<section class="section" id="sec-librarian"><header class="sectionhead"><h2>LIBRARIAN</h2></header><p>No curated articles with original links have been filed in this period yet.</p></section>'}${renderScannerSection()}${logs}`,
   });
 }
