@@ -203,22 +203,53 @@ function linkify(text) {
 }
 
 /**
- * NEWSWIRE's alerts (FLASH, UPDATE, DIGEST) as a panel at the head of the rail.
- * Each item is the text NEWSWIRE used to send to Telegram: its first line is
- * the kind, the next non-empty line the headline, the rest the detail.
+ * A NEWSWIRE alert's numbered stories: "1. Headline", an indented
+ * "impact 82 · confidence 97 · 5 independent · first 02:55 · NW-E32FA" line and
+ * an indented "source: url" line. Telegram-only lines ("Reply e.g. …") are dropped.
  */
+export function parseNewswire(text) {
+  const stories = [];
+  for (const line of String(text ?? "").split("\n").slice(1)) {
+    const head = line.match(/^\s*(\d+)\.\s+(.+)$/);
+    if (head) { stories.push({ hed: head[2].trim() }); continue; }
+    const cur = stories.at(-1);
+    if (!cur) continue;
+    const link = line.match(/^\s+([\w.-]+):\s+(https?:\/\/\S+)\s*$/);
+    if (link && !cur.url) {
+      const bsky = link[2].match(/bsky\.app\/profile\/([^/]+)/);
+      Object.assign(cur, { url: link[2], via: bsky ? bsky[1].replace(/^www\./, "") : link[1] });
+      continue;
+    }
+    const m = line.match(/impact\s+(\d+).*?(\d+)\s+independent(?:.*?first\s+([\d:]+))?/);
+    if (m && !cur.impact) Object.assign(cur, { impact: +m[1], independent: +m[2], first: m[3] });
+  }
+  return stories;
+}
+
+/** NEWSWIRE's alerts (FLASH, UPDATE, DIGEST) as a panel at the head of the rail. */
 function newswirePanel(items) {
   if (!items?.length) return "";
   const rows = items
     .map((item, n) => {
       const lines = item.text.split("\n");
-      const kind = lines[0].replace(/^\W*NEWSWIRE\s*(?:—\s*)?/u, "") || "Alert";
-      const h = lines.findIndex((l, i) => i > 0 && l.trim());
-      const hed = h > 0 ? lines[h].trim() : "";
-      const rest = (h > 0 ? lines.slice(h + 1) : lines.slice(1)).join("\n").trim();
+      const kind = lines[0].replace(/^\W*NEWSWIRE\s*(?:—\s*)?/u, "").replace(/\s*—.*$/, "") || "Alert";
+      const stories = parseNewswire(item.text);
+      const list = stories.length
+        ? `<ol class="nw-list">${stories
+            .map((s) => {
+              const meta = [s.via, s.independent ? `${s.independent} ${s.independent === 1 ? "source" : "sources"}` : "",
+                s.first ? `first ${s.first}` : ""].filter(Boolean).map(esc).join(" · ");
+              const hed = s.url
+                ? `<a href="${attr(s.url)}" rel="noopener noreferrer nofollow" target="_blank">${esc(s.hed)}</a>`
+                : esc(s.hed);
+              return `<li${s.impact >= 75 ? ' class="hot"' : ""}><span class="nw-story">${hed}</span>${when(meta, (t) => `<span class="nw-meta">${t}</span>`)}</li>`;
+            })
+            .join("")}</ol>`
+        : `<div class="nw-body">${linkify(lines.slice(1).filter((l) => !/^\s*reply\b/i.test(l)).join("\n").trim())}</div>`;
+      const top = stories[0]?.hed ?? "";
       return `<details class="nw-item"${n === 0 ? " open" : ""}>
-<summary><span class="nw-kind">${esc(kind)}</span>${when(fmtTimestamp(item.at), (t) => `<span class="nw-time">${esc(t)}</span>`)}${when(hed, (t) => `<span class="nw-hed">${esc(t)}</span>`)}</summary>
-${when(rest, (r) => `<div class="nw-body">${linkify(r)}</div>`)}
+<summary><span class="nw-kind">${esc(kind)}</span>${when(fmtTimestamp(item.at), (t) => `<span class="nw-time">${esc(t)}</span>`)}${when(top, (t) => `<span class="nw-hed">${esc(t)}</span>`)}</summary>
+${list}
 </details>`;
     })
     .join("");
@@ -231,6 +262,10 @@ ${rows}
 
 /** Full-width ruled ticker band, the way a financial paper sets its front. */
 function tickerBand(groups) {
+  // "Reliable current data unavailable" is honest in the edition but noise in a ticker: leave the slot out.
+  groups = groups
+    .map((g) => ({ ...g, rows: g.rows.filter((r) => !/unavailable/i.test(`${r.value} ${r.change}`)) }))
+    .filter((g) => g.rows.length);
   if (!groups.length) return "";
   const segs = groups
     .map(
@@ -341,7 +376,9 @@ function colophon(ctx, edition) {
 
 export function renderFrontPage(edition, ctx) {
   const plan = planEdition(edition);
-  const railInner = [newswirePanel(ctx.newswire), briefingBox(edition), plan.rail.map((s) => railStory(s, ctx)).join("")].join("");
+  // The briefing sits under the lead, not in the rail: in the rail it made the rail far longer than the lead
+  // column and left a dead block of space beside it.
+  const railInner = [newswirePanel(ctx.newswire), plan.rail.map((s) => railStory(s, ctx)).join("")].join("");
   const navCtx = ctx.newswire?.length ? { ...ctx, extraIndex: `${ctx.extraIndex ?? ""}<a href="#newswire">Newswire</a>` } : ctx;
 
   const body = `${nameplate(navCtx, {
@@ -354,7 +391,7 @@ ${tickerBand(plan.markets)}
 <main>
 ${ctx.beforeSections ?? ""}
 <div class="frontpage${railInner ? "" : " solo"}">
-<div class="leadwell">${plan.lead ? leadStory(plan.lead, ctx) : ""}${plan.subLead ? secondLead(plan.subLead, ctx) : ""}</div>
+<div class="leadwell">${plan.lead ? leadStory(plan.lead, ctx) : ""}${briefingBox(edition)}${plan.subLead ? secondLead(plan.subLead, ctx) : ""}</div>
 ${railInner ? `<div class="rail">${railInner}</div>` : ""}
 </div>
 ${plan.sections.map((s) => sectionBlock(s, ctx)).join("")}
