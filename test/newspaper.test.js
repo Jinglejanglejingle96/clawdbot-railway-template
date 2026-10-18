@@ -87,12 +87,12 @@ test("write then read round-trips through the workspace", () => {
   assert.equal(readEdition(ws, "2020-01-01"), null);
 });
 
-test("prune keeps only the newest edition, leaving other files alone", () => {
+test("prune keeps a rolling archive window, leaving other files alone", () => {
   const ws = tmp();
-  for (const date of ["2026-09-21", "2026-09-22", "2026-09-23"]) writeEdition(ws, { date, sections: {} });
+  for (const date of ["2026-06-01", "2026-06-25", "2026-09-22", "2026-09-23"]) writeEdition(ws, { date, sections: {} });
   fs.writeFileSync(path.join(ws, "data", "newspaper", "link.txt"), "x");
   pruneEditions(ws, "2026-09-23");
-  assert.deepEqual(listEditions(ws), ["2026-09-23"]);
+  assert.deepEqual(listEditions(ws), ["2026-09-23", "2026-09-22", "2026-06-25"]); // 90 days back is 2026-06-25
   assert.ok(fs.existsSync(path.join(ws, "data", "newspaper", "link.txt")));
 });
 
@@ -372,4 +372,36 @@ test("a page with no image tags yields no image", () => {
 test("server mounts the newspaper before the dashboard catch-all", () => {
   const src = fs.readFileSync(new URL("../src/server.js", import.meta.url), "utf8");
   assert.ok(src.indexOf('app.use(\n    "/news"') < src.indexOf("app.use(requireDashboardAuth"));
+});
+
+test("market read, outlook and article background render; empty ones vanish", () => {
+  const ed = normaliseEdition({
+    date: "2026-09-23",
+    sections: { ECONOMY: [story({ headline: "Fed holds", importance: 9, background: "Rates rose in 2025.\n\nThen paused." })] },
+    market_read: [{ group: "International", points: ["Risk-off on tariffs", ""] }, { group: "Korea", points: [] }],
+    outlook: [{ group: "International", theme: "Tariffs", risk: "Oil spike", watch: "CPI on Tuesday" }, { group: "Korea" }],
+  }, "2026-09-23");
+  assert.deepEqual(ed.marketRead, [{ group: "International", points: ["Risk-off on tariffs"] }]);
+  assert.equal(ed.outlook.length, 1);
+  const front = renderFrontPage(ed, ctx());
+  assert.match(front, /Market Read/);
+  assert.match(front, /Risk-off on tariffs/);
+  assert.match(front, /CPI on Tuesday/);
+  assert.doesNotMatch(front, /<h3>Korea<\/h3>/);
+  const article = renderArticle(ed, ed.lead, ctx());
+  assert.match(article, /Background<\/span><p>Rates rose in 2025.<\/p><p>Then paused.<\/p>/);
+  const bare = renderFrontPage(normaliseEdition({ date: "2026-09-23", sections: { WORLD: [story({ headline: "A" })] } }, "2026-09-23"), ctx());
+  assert.doesNotMatch(bare, /Market Read/);
+});
+
+test("a full-length lead still gets a second story when NEWSWIRE lengthens the rail", () => {
+  const long = "x".repeat(900);
+  const ed = normaliseEdition({ date: "2026-09-23", sections: {
+    WORLD: [story({ headline: "Lead", importance: 10, summary: long }), story({ headline: "W2", importance: 8 }), story({ headline: "W3", importance: 6 })],
+    ECONOMY: [story({ headline: "E1", importance: 8 }), story({ headline: "E2", importance: 6 })],
+    KOREA: [story({ headline: "K1", importance: 7 }), story({ headline: "K2", importance: 6 })],
+    AI: [story({ headline: "A1", importance: 7 }), story({ headline: "A2", importance: 6 })],
+  } }, "2026-09-23");
+  assert.equal(planEdition(ed).subLead, null);
+  assert.ok(planEdition(ed, { railExtra: 2 }).subLead);
 });

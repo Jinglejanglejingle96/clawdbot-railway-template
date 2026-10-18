@@ -192,6 +192,33 @@ ${body}
 </aside>`;
 }
 
+/** REPORTER's Market Read and the day's theme / risk / event to watch, one column per group. */
+function marketDesk(edition) {
+  const groups = [];
+  for (const r of edition.marketRead ?? []) groups.push({ group: r.group, points: r.points });
+  for (const o of edition.outlook ?? []) {
+    let g = groups.find((x) => x.group === o.group);
+    if (!g) groups.push((g = { group: o.group, points: [] }));
+    g.outlook = o;
+  }
+  if (!groups.length) return "";
+  const line = (label, text) => when(text, (t) => `<p class="md-line"><span class="label">${label}</span>${esc(t)}</p>`);
+  const cols = groups
+    .map(
+      (g) => `<div class="md-col">
+${when(g.group, (n) => `<h3>${esc(n)}</h3>`)}
+${g.points.length ? `<ul>${g.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+${g.outlook ? `${line("Theme", g.outlook.theme)}${line("Main risk", g.outlook.risk)}${line("Watch", g.outlook.watch)}` : ""}
+</div>`,
+    )
+    .join("");
+  return `<aside class="briefing marketdesk" id="market-read">
+<span class="stamp">Markets desk</span>
+<h2>Market Read</h2>
+<div class="md-cols">${cols}</div>
+</aside>`;
+}
+
 /** Plain text with its URLs made clickable. URLs are escaped only, never typeset. */
 function linkify(text) {
   return String(text ?? "")
@@ -375,7 +402,8 @@ function colophon(ctx, edition) {
 // ── pages ─────────────────────────────────────────────────────────────────
 
 export function renderFrontPage(edition, ctx) {
-  const plan = planEdition(edition);
+  // The NEWSWIRE panel lengthens the rail by about two stories' worth.
+  const plan = planEdition(edition, { railExtra: ctx.newswire?.length ? 2 : 0 });
   // The briefing sits under the lead, not in the rail: in the rail it made the rail far longer than the lead
   // column and left a dead block of space beside it.
   const railInner = [newswirePanel(ctx.newswire), plan.rail.map((s) => railStory(s, ctx)).join("")].join("");
@@ -391,7 +419,7 @@ ${tickerBand(plan.markets)}
 <main>
 ${ctx.beforeSections ?? ""}
 <div class="frontpage${railInner ? "" : " solo"}">
-<div class="leadwell">${plan.lead ? leadStory(plan.lead, ctx) : ""}${briefingBox(edition)}${plan.subLead ? secondLead(plan.subLead, ctx) : ""}</div>
+<div class="leadwell">${plan.lead ? leadStory(plan.lead, ctx) : ""}${briefingBox(edition)}${marketDesk(edition)}${plan.subLead ? secondLead(plan.subLead, ctx) : ""}</div>
 ${railInner ? `<div class="rail">${railInner}</div>` : ""}
 </div>
 ${plan.sections.map((s) => sectionBlock(s, ctx)).join("")}
@@ -426,6 +454,7 @@ ${byline(story, ctx)}
 ${figure(story)}
 <div class="prose">
 ${prose}
+${when(story.background, (t) => `<span class="label">Background</span>${paragraphs(t).map((p) => `<p>${esc(p)}</p>`).join("")}`)}
 ${when(story.why_it_matters, (t) => `<span class="label">Why it matters</span><p>${esc(t)}</p>`)}
 ${when(story.what_to_watch, (t) => `<span class="label">What to watch</span><p>${esc(t)}</p>`)}
 </div>

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { assembleIssue, librarianJobs, monthNow, readIssue, refreshIssue, renderLibrary } from "../src/newspaper/library.js";
-import { articlesFromIssue, linkedArticles, weekStart } from "../src/newspaper/library-articles.js";
+import { articlesFromIssue, desk, linkedArticles, weekStart } from "../src/newspaper/library-articles.js";
 import { renderLibraryPage } from "../src/newspaper/library-page.js";
 import { validScannerAction } from "../src/newspaper/library.js";
 
@@ -123,4 +123,28 @@ test("the Review page does not inline SCANNER data; scanner.js fetches it", () =
   assert.doesNotMatch(html, /scanner-data/);
   assert.ok(html.length < 100_000, `page is ${html.length} bytes`);
   assert.match(html, /\/news\/library\/scanner\.js/);
+});
+
+test("free-form LIBRARIAN categories fold into fixed desks", () => {
+  assert.equal(desk("AI / Data engineering"), "AI & AGENTS");
+  assert.equal(desk("Neuroscience / Clinical neurology"), "NEUROSCIENCE & BCI");
+  assert.equal(desk("AI / Neuroscience"), "NEUROSCIENCE & BCI");
+  assert.equal(desk("Application security"), "TECH & ENGINEERING");
+  assert.equal(desk("Climate"), "SCIENCE & NATURE");
+  assert.equal(desk("", "Do birds enjoy flying? Scientists asked cockatoos"), "SCIENCE & NATURE");
+  assert.equal(desk("Article"), "MORE READING");
+});
+
+test("the Review leads with recent reading, not an old high-priority paper", () => {
+  const at = Date.parse("2026-10-17T11:00:00Z");
+  const issue = { month: "2026-10", refreshed_at: "2026-10-18T12:00:00Z", jobs: [{ id: "a", name: "librarian-digest", runs: [{ at: "2026-10-17T11:00:00Z", status: "ok", summary: "", items: [
+    { title: "Old sleep review", url: "https://example.org/old", category: "Neuroscience", published_at: "2026-05-21", summary: "Old", priority: 5 },
+    { title: "Fresh agent paper", url: "https://example.org/new", category: "AI agents", published_at: "2026-10-16", summary: "New", priority: 5 },
+    { title: "Fresh minor note", url: "https://example.org/minor", category: "AI", published_at: "2026-10-17", summary: "Minor", priority: 2 },
+  ] }] }] };
+  void at;
+  const edition = articlesFromIssue(issue);
+  assert.equal(edition.lead.headline, "Fresh agent paper");
+  assert.deepEqual(edition.orderedSections, ["AI & AGENTS", "NEUROSCIENCE & BCI"]);
+  assert.equal(edition.sections["AI & AGENTS"][0].deck, "AI agents");
 });

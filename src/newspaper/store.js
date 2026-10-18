@@ -15,20 +15,35 @@ export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // appended in the order REPORTER emitted them.
 export const SECTION_ORDER = [
   "WORLD",
-  "UK",
-  "KOREA",
-  "BUSINESS",
+  "POLITICS",
+  "ECONOMY",
   "MARKETS",
-  "TECHNOLOGY",
+  "BUSINESS",
+  "KOREA",
+  "UK",
   "AI",
+  "TECHNOLOGY",
   "SCIENCE",
-  "NEUROSCIENCE",
   "HEALTH",
+  "NEUROSCIENCE",
   "CULTURE",
   "HOT TOPICS",
   "HACKER NEWS",
   "THE NEWSLETTERS",
+  "LATEST UPDATES",
+  // The Jeeves Review's desks (library-articles.js).
+  "AI & AGENTS",
+  "NEUROSCIENCE & BCI",
+  "MEDICINE & HEALTH",
+  "SCIENCE & NATURE",
+  "TECH & ENGINEERING",
+  "ECONOMY & BUSINESS",
+  "SOCIETY & IDEAS",
+  "MORE READING",
 ];
+
+// Past editions stay readable from the archive for this long, then are deleted.
+export const RETAIN_DAYS = 90;
 
 export function newspaperDir(workspaceDir) {
   return path.join(workspaceDir, "data", "newspaper");
@@ -92,10 +107,11 @@ export function readLatestEdition(workspaceDir, date = londonToday()) {
   return null;
 }
 
-/** Delete every edition dated before `keepDate`; only the newest paper is kept. */
-export function pruneEditions(workspaceDir, keepDate) {
+/** Delete editions more than `days` before `keepDate`, so the archive holds a rolling window. */
+export function pruneEditions(workspaceDir, keepDate, days = RETAIN_DAYS) {
+  const cutoff = new Date(Date.parse(`${keepDate}T00:00:00Z`) - days * 86400000).toISOString().slice(0, 10);
   for (const d of listEditions(workspaceDir)) {
-    if (d < keepDate) fs.rmSync(editionPath(workspaceDir, d), { force: true });
+    if (d < cutoff) fs.rmSync(editionPath(workspaceDir, d), { force: true });
   }
 }
 
@@ -167,6 +183,7 @@ function normaliseStory(raw, fallbackSection) {
     headline,
     deck: str(raw.deck) || str(raw.subhead),
     summary: str(raw.summary),
+    background: str(raw.background),
     why_it_matters: str(raw.why_it_matters),
     what_to_watch: str(raw.what_to_watch),
     pull_quote: str(raw.pull_quote),
@@ -200,6 +217,21 @@ function normaliseMarket(raw) {
     status: str(raw.status),
     note: str(raw.note) || str(raw.driver),
   };
+}
+
+// market_read: [{group, points: [..]}]; outlook: [{group, theme, risk, watch}]. Rows with nothing to say are dropped.
+function normaliseMarketRead(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((r) => ({ group: str(r?.group) || "Markets", points: (Array.isArray(r?.points) ? r.points : []).map(str).filter(Boolean) }))
+    .filter((r) => r.points.length);
+}
+
+function normaliseOutlook(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((r) => ({ group: str(r?.group), theme: str(r?.theme), risk: str(r?.risk), watch: str(r?.watch) }))
+    .filter((r) => r.theme || r.risk || r.watch);
 }
 
 export function normaliseEdition(raw, fallbackDate) {
@@ -255,6 +287,8 @@ export function normaliseEdition(raw, fallbackDate) {
     sections,
     orderedSections,
     markets,
+    marketRead: normaliseMarketRead(raw?.market_read),
+    outlook: normaliseOutlook(raw?.outlook),
     storyCount: bySlug.size,
     bySlug,
   };

@@ -33,7 +33,8 @@ export function planMarkets(markets) {
   return groups;
 }
 
-export function planEdition(edition) {
+/** `railExtra`: how many stories' height the rail carries above its stories (the NEWSWIRE panel). */
+export function planEdition(edition, { railExtra = 0 } = {}) {
   const used = new Set();
   const lead = edition.lead ?? null;
   if (lead) used.add(lead.slug);
@@ -67,9 +68,11 @@ export function planEdition(edition) {
 
   // A short lead leaves the main well far shorter than the rail beside it.
   // Print solves this by running a second story above the fold rather than
-  // by padding the first, so do the same: promote the strongest rail item.
+  // by padding the first, so do the same: promote the strongest rail item. A rail
+  // that also carries the NEWSWIRE panel outruns even a full-length lead.
   let subLead = null;
-  if (lead && (lead.summary?.length ?? 0) < SHORT_LEAD_CHARS && rail.length >= 3) {
+  const shortLead = (lead?.summary?.length ?? 0) < SHORT_LEAD_CHARS;
+  if (lead && rail.length >= 3 && (shortLead || rail.length + railExtra > RAIL_MAX)) {
     subLead = rail.shift();
   }
 

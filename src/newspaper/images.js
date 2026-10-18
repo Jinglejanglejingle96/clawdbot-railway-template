@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { newspaperDir } from "./store.js";
+import { newspaperDir, RETAIN_DAYS } from "./store.js";
 
 const CACHE_FILE = ".images.json";
 const MAX_HTML_BYTES = 192 * 1024; // og: tags live in <head>; never read a whole page
@@ -149,10 +149,11 @@ function cachedValue(entry) {
 export async function ensureImages(workspaceDir, edition, { budgetMs = 4000, prune = false } = {}) {
   const c = loadCache(workspaceDir);
   if (prune) {
-    // Only one edition is kept, so drop lookups for articles no longer on disk.
+    // Editions are kept for RETAIN_DAYS, so drop lookups older than that unless today's paper still uses them.
     const live = new Set([...edition.bySlug.values()].map((s) => s.url));
+    const cutoff = Date.now() - RETAIN_DAYS * 86400000;
     for (const url of Object.keys(c)) {
-      if (!live.has(url)) {
+      if (!live.has(url) && !(c[url]?.at > cutoff)) {
         delete c[url];
         cacheDirty = true;
       }

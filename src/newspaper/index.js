@@ -167,7 +167,7 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     const carry = key ? `?k=${key}` : "";
     let editionNo = null;
     if (date) {
-      // Old editions are pruned, so count from the first issue, not the oldest file.
+      // Old editions are pruned after RETAIN_DAYS, so count from the first issue, not the oldest file.
       const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${FIRST_EDITION}T00:00:00Z`)) / 86400000);
       if (Number.isFinite(days) && days >= 0) editionNo = (days + 1).toLocaleString("en-GB");
     }
