@@ -360,11 +360,23 @@ ${when(description, (d) => `<meta name="description" content="${attr(d)}">`)}
 <link rel="stylesheet" href="${attr(ctx.css ?? ctx.link("/style.css"))}">
 ${when(ctx.extraCss, (url) => `<link rel="stylesheet" href="${attr(url)}">`)}
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23faf7f0'/%3E%3Ctext x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='700' text-anchor='middle' fill='%2315110c'%3EJ%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="/news/manifest.webmanifest" crossorigin="use-credentials">
+<link rel="apple-touch-icon" href="/news/icon-192.png">
+<meta name="theme-color" content="#faf7f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14120e" media="(prefers-color-scheme: dark)">
 </head>
 <body>
 <div class="sheet">
 ${body}
 </div>
+<nav class="apptabs" aria-label="Jeeves app"><a href="/news/">Daily</a><a href="/news/library">Review</a></nav>
+<script>
+(() => {
+  const review = location.pathname.startsWith("/news/library");
+  document.querySelectorAll(".apptabs a")[review ? 1 : 0].setAttribute("aria-current", "page");
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/news/sw.js", { scope: "/news" });
+})();
+</script>
 </body>
 </html>`;
 }

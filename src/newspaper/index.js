@@ -119,6 +119,31 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     }
   }
 
+  // Installable app: one home-screen icon, Daily and Review as tabs (render.js shell).
+  // Served before the access check: nothing private in them, and Chrome fetches icons without the cookie.
+  router.get("/manifest.webmanifest", (_req, res) => {
+    res.type("application/manifest+json").send(JSON.stringify({
+      name: "The Jeeves Daily & Review",
+      short_name: "Jeeves Daily",
+      start_url: `${mountPath}/`,
+      scope: mountPath,
+      display: "standalone",
+      background_color: "#faf7f0",
+      theme_color: "#faf7f0",
+      icons: [192, 512].map((n) => ({ src: `${mountPath}/icon-${n}.png`, sizes: `${n}x${n}`, type: "image/png", purpose: "any maskable" })),
+      shortcuts: [
+        { name: "Jeeves Daily", url: `${mountPath}/` },
+        { name: "Jeeves Review", url: `${mountPath}/library` },
+      ],
+    }));
+  });
+  router.get(/^\/icon-(192|512)\.png$/, (req, res) => {
+    res.type("png").set("Cache-Control", "public, max-age=604800").send(fs.readFileSync(new URL(`./icon-${req.params[0]}.png`, import.meta.url)));
+  });
+  router.get("/sw.js", (_req, res) => {
+    res.type("text/javascript").set({ "Service-Worker-Allowed": mountPath, "Cache-Control": "no-cache" }).send(fs.readFileSync(new URL("./sw.js", import.meta.url), "utf8"));
+  });
+
   // --- access -------------------------------------------------------------
   // Same posture as the rest of the wrapper: open when no password is set.
   // Otherwise a long-lived reading key (shareable in a Telegram link) or the
@@ -136,7 +161,16 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
       });
       return next();
     }
-    if (readCookie(req, COOKIE) && safeEqual(readCookie(req, COOKIE), token)) return next();
+    if (readCookie(req, COOKIE) && safeEqual(readCookie(req, COOKIE), token)) {
+      // Sliding expiry: the installed app opens without ?k, so keep the cookie fresh while it is used.
+      res.cookie(COOKIE, token, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: req.secure || req.get("x-forwarded-proto") === "https",
+        maxAge: COOKIE_MAX_AGE_MS,
+      });
+      return next();
+    }
 
     const header = req.headers.authorization ?? "";
     const [scheme, encoded] = header.split(" ");
