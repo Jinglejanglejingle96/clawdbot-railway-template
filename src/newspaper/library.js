@@ -100,7 +100,13 @@ export async function refreshIssue(workspaceDir, month = monthNow(), run = comma
   const openclaw = (...args) => run(cli ? [process.execPath, cli, ...args] : ["openclaw", ...args]);
   const listing = await openclaw("cron", "list", "--json");
   const jobs = librarianJobs(listing.jobs ?? []);
-  const results = await Promise.allSettled(jobs.map((job) => openclaw("cron", "runs", "--id", job.id, "--limit", "200", "--json")));
+  // One CLI at a time: each `openclaw` process takes 100-400 MB, and starting one per job at once pushed the
+  // container over its memory limit every 30 minutes (the gateway was OOM-killed about daily, 2026-11).
+  const results = [];
+  for (const job of jobs) {
+    results.push(await openclaw("cron", "runs", "--id", job.id, "--limit", "200", "--json")
+      .then((value) => ({ status: "fulfilled", value }), (reason) => ({ status: "rejected", reason })));
+  }
   const prior = readIssue(workspaceDir, month);
   const histories = {};
   for (let i = 0; i < jobs.length; i++) {
