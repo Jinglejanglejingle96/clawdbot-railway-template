@@ -342,6 +342,30 @@ ${briefs}
 </section>`;
 }
 
+// The Review's best reading of the past week, on the Daily's front page (Ji, 2026-11-23). ctx links into
+// /news/library, where the full Review (all reading, SCANNER, run log) stays as a back page.
+// First sentence or two, up to ~220 characters: the full summary is one tap away on the article page.
+const teaser = (text, max = 220) => {
+  const t = String(text ?? "").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max).match(/^.*[.!?](?=\s)/s)?.[0];
+  return cut && cut.length > 80 ? cut : `${t.slice(0, max).replace(/\s+\S*$/, "")}…`;
+};
+
+export function reviewSection(edition, ctx, { limit = 6 } = {}) {
+  const top = [...(edition?.bySlug?.values() ?? [])].sort((a, b) => b.importance - a.importance).slice(0, limit);
+  if (!top.length) return "";
+  return `<section class="section" id="sec-from-the-review">
+<header class="sectionhead">
+<h2>From the Review</h2>
+<span class="fill"></span>
+<span class="count">${edition.storyCount} ${edition.storyCount === 1 ? "item" : "items"} this week</span>
+</header>
+<div class="grid3 cols-${Math.min(3, top.length)}">${top.map((s) => standardStory({ ...s, summary: teaser(s.summary) }, ctx)).join("")}</div>
+<a class="readmore" href="${attr(ctx.link(""))}">All reading, SCANNER and run log</a>
+</section>`;
+}
+
 // ── page shell ────────────────────────────────────────────────────────────
 
 function shell({ title, ctx, body, description = "" }) {
@@ -369,13 +393,8 @@ ${when(ctx.extraCss, (url) => `<link rel="stylesheet" href="${attr(url)}">`)}
 <div class="sheet">
 ${body}
 </div>
-<nav class="apptabs" aria-label="Jeeves app"><a href="/news/">Daily</a><a href="/news/library">Review</a></nav>
 <script>
-(() => {
-  const review = location.pathname.startsWith("/news/library");
-  document.querySelectorAll(".apptabs a")[review ? 1 : 0].setAttribute("aria-current", "page");
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/news/sw.js", { scope: "/news" });
-})();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/news/sw.js", { scope: "/news" });
 </script>
 </body>
 </html>`;

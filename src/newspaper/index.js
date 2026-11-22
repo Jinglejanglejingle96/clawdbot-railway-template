@@ -15,7 +15,7 @@ import { ensureImages } from "./images.js";
 import { listIssues, monthNow, readIssue, refreshIssue, scannerOp, validScannerAction, MONTH } from "./library.js";
 import { libraryEdition, renderLibraryPage } from "./library-page.js";
 import { weekStart } from "./library-articles.js";
-import { renderArchive, renderArticle, renderEmpty, renderFrontPage } from "./render.js";
+import { renderArchive, renderArticle, renderEmpty, renderFrontPage, reviewSection } from "./render.js";
 import {
   DATE_RE,
   findStory,
@@ -310,7 +310,9 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     const month = date.slice(0, 7);
     const issue = month === monthNow() ? await currentLibrary() : readIssue(workspaceDir, month);
     const ctx = month === monthNow() ? activeLibraryContext(req, month) : libraryContext(req);
-    const edition = issue && libraryEdition(issue, ctx);
+    // Whole month plus the one before, not just this week: the Daily's "From the Review" links a rolling 7 days.
+    const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+    const edition = issue && libraryEdition(issue, { extraIssues: [readIssue(workspaceDir, previousMonth)].filter(Boolean) });
     const story = findStory(edition, slug);
     if (!story) return res.status(404).type("text/plain").send("This report is unavailable.");
     res.type("html").send(renderArticle(edition, story, { ...ctx, date, publication: "Jeeves Review", compiler: "LIBRARIAN", extraCss: ctx.scannerCss }));
@@ -323,6 +325,23 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
     res.type("html").set("Cache-Control", req.params.month === monthNow() ? "private, no-cache" : "private, max-age=60").send(renderLibraryPage(issue, ctx));
   });
 
+  // Last 7 days of LIBRARIAN reading for the Daily (a rolling week, so Monday mornings are not empty). Reads the
+  // snapshot syncLibrary keeps fresh; never blocks the Daily on a refresh.
+  function fromTheReview(req) {
+    try {
+      const month = monthNow();
+      const issue = readIssue(workspaceDir, month);
+      if (!issue) return "";
+      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+      const extraIssues = since.slice(0, 7) === previousMonth ? [readIssue(workspaceDir, previousMonth)].filter(Boolean) : [];
+      return reviewSection(libraryEdition(issue, { since, extraIssues }), { ...libraryContext(req), date: `${month}-01` });
+    } catch (err) {
+      console.error(`[library] Daily review section failed: ${String(err)}`);
+      return "";
+    }
+  }
+
   router.get("/", async (req, res, next) => {
     try {
       const edition = readLatestEdition(workspaceDir);
@@ -334,7 +353,11 @@ export function createNewspaperRouter({ workspaceDir, stateDir, setupPassword, m
       }
       pruneEditions(workspaceDir, edition.date);
       await ensureImages(workspaceDir, edition, { prune: true });
-      const ctx = { ...context(req, edition.date), newswire: readNewswire(workspaceDir) };
+      const review = fromTheReview(req);
+      const ctx = {
+        ...context(req, edition.date), newswire: readNewswire(workspaceDir),
+        afterSections: review, extraIndex: review ? '<a href="#sec-from-the-review">Reading</a>' : undefined,
+      };
       res.type("html").set("Cache-Control", "private, max-age=60").send(renderFrontPage(edition, ctx));
     } catch (err) {
       next(err);

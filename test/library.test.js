@@ -148,3 +148,17 @@ test("the Review leads with recent reading, not an old high-priority paper", () 
   assert.deepEqual(edition.orderedSections, ["AI & AGENTS", "NEUROSCIENCE & BCI"]);
   assert.equal(edition.sections["AI & AGENTS"][0].deck, "AI agents");
 });
+
+test("the Daily's From the Review section links Review articles and hides when empty", async () => {
+  const { reviewSection } = await import("../src/newspaper/render.js");
+  const issue = { month: "2026-11", refreshed_at: "2026-11-23T12:00:00Z", jobs: [{ id: "a", name: "librarian-digest", runs: [{ at: "2026-11-22T11:00:00Z", status: "ok", summary: "", items: [
+    { title: "Agent paper", url: "https://example.org/a", category: "AI agents", summary: "A", priority: 5 },
+    { title: "Sleep study", url: "https://example.org/b", category: "Neuroscience", summary: "B", priority: 3 },
+  ] }] }] };
+  const ctx = { date: "2026-11-01", link: (p) => `/news/library${p}` };
+  const html = reviewSection(articlesFromIssue(issue), ctx);
+  assert.match(html, /From the Review/);
+  assert.match(html, /href="\/news\/library\/2026-11-01\/s\/agent-paper/);
+  assert.ok(html.indexOf("Agent paper") < html.indexOf("Sleep study"), "highest priority first");
+  assert.equal(reviewSection(articlesFromIssue({ ...issue, jobs: [] }), ctx), "");
+});
